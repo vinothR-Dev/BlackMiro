@@ -55,7 +55,7 @@ PDF and SVG are always vector (text stays text). \*AVIF appears only when an AVI
 
 ## Build
 
-Requires Qt 6.8+ (developed on 6.11.1) and CMake 3.21+.
+Requires Qt 6.8+ (CI builds with 6.8.3 LTS) and CMake 3.21+.
 
 **Windows (MSVC):**
 
@@ -67,11 +67,11 @@ scripts\run-tests-windows.bat
 **Linux / macOS:**
 
 ```bash
-cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.1/<kit> -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/Qt/6.8.3/<kit> -DCMAKE_BUILD_TYPE=Release
 cmake --build build && ./build/tst_export
 ```
 
-**Web (WebAssembly)** — needs the Emscripten SDK matching your Qt (4.0.7 for Qt 6.11):
+**Web (WebAssembly)** — needs the Emscripten SDK matching your Qt (3.1.56 for Qt 6.8):
 
 ```bat
 scripts\build-web.bat
@@ -83,7 +83,7 @@ Then open http://localhost:8080/BlackMiro.html. Host the four files in `build\we
 Insert image use the browser's own file dialogs, and Export produces a single download
 (a ZIP when several files are produced).
 
-**Android** — needs the Android SDK, NDK r27c and a JDK 17+ (Android Studio's bundled one works):
+**Android** — needs the Android SDK, NDK r26b and a JDK 17+ (Android Studio's bundled one works):
 
 ```bat
 scripts\build-android.bat

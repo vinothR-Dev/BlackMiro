@@ -1,7 +1,7 @@
 @echo off
 rem Builds the WebAssembly version into build\web (open BlackMiro.html via a web server).
 setlocal
-if "%QT_ROOT%"=="" set QT_ROOT=C:\Qt\6.11.1
+if "%QT_ROOT%"=="" set QT_ROOT=C:\Qt\6.8.3
 if "%EMSDK%"=="" set EMSDK=C:\emsdk
 
 call "%EMSDK%\emsdk_env.bat" >nul 2>&1

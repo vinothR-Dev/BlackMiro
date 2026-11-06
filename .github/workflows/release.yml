@@ -20,9 +20,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  QT_VERSION: 6.11.1
-  EMSDK_VERSION: 4.0.7
-  NDK_VERSION: 27.2.12479018
+  QT_VERSION: 6.8.3
+  EMSDK_VERSION: 3.1.56
+  NDK_VERSION: 26.1.10909125
 
 jobs:
   build:
@@ -30,7 +30,7 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Read version from CMakeLists.txt
         id: ver
@@ -71,7 +71,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
-          host: windows
+          host: all_os
           target: android
           arch: android_arm64_v8a
           modules: qtwebsockets qtimageformats

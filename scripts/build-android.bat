@@ -1,9 +1,9 @@
 @echo off
 rem Builds an installable (debug-signed) Android APK for arm64 phones into build\android.
 setlocal
-if "%QT_ROOT%"=="" set QT_ROOT=C:\Qt\6.11.1
+if "%QT_ROOT%"=="" set QT_ROOT=C:\Qt\6.8.3
 if "%ANDROID_SDK_ROOT%"=="" set ANDROID_SDK_ROOT=%LOCALAPPDATA%\Android\Sdk
-if "%ANDROID_NDK_ROOT%"=="" set ANDROID_NDK_ROOT=%ANDROID_SDK_ROOT%\ndk\27.2.12479018
+if "%ANDROID_NDK_ROOT%"=="" set ANDROID_NDK_ROOT=%ANDROID_SDK_ROOT%\ndk\26.1.10909125
 if "%JAVA_HOME%"=="" set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr
 set PATH=C:\Qt\Tools\Ninja;%JAVA_HOME%\bin;%PATH%
 
