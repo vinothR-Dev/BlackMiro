@@ -1,0 +1,175 @@
+# Every push to main: build Windows, web and Android, run the tests, then
+#  - publish the files on the Releases page (tag v<version from CMakeLists.txt>;
+#    pushing again with the same version replaces that release's files), and
+#  - publish the web app on GitHub Pages.
+# One-time setup: repo Settings -> Pages -> Source: "GitHub Actions".
+name: Build and release
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write      # create the release
+  pages: write         # deploy GitHub Pages
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  QT_VERSION: 6.11.1
+  EMSDK_VERSION: 4.0.7
+  NDK_VERSION: 27.2.12479018
+
+jobs:
+  build:
+    runs-on: windows-2022
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from CMakeLists.txt
+        id: ver
+        shell: pwsh
+        run: |
+          $m = Select-String -Path CMakeLists.txt -Pattern 'project\(BlackMiro VERSION ([0-9.]+)'
+          $v = $m.Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "Version $v"
+
+      - name: Install Ninja
+        run: choco install ninja -y --no-progress
+
+      # Qt goes to C:\Qt\<version>\<kit>, where the build scripts look by default.
+      - name: Qt for Windows
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qtwebsockets qtimageformats qtpdf
+          dir: 'C:\'
+          set-env: false
+          cache: true
+      - name: Qt for WebAssembly
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: all_os
+          target: wasm
+          arch: wasm_singlethread
+          modules: qtwebsockets qtimageformats
+          dir: 'C:\'
+          set-env: false
+          cache: true
+      - name: Qt for Android
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: android
+          arch: android_arm64_v8a
+          modules: qtwebsockets qtimageformats
+          dir: 'C:\'
+          set-env: false
+          cache: true
+
+      - name: Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EMSDK_VERSION }}
+
+      - name: Android SDK packages
+        shell: pwsh
+        run: |
+          $sdk = $env:ANDROID_SDK_ROOT
+          $mgr = Get-ChildItem "$sdk\cmdline-tools" -Recurse -Filter sdkmanager.bat | Select-Object -First 1
+          "y`n" * 20 | & $mgr.FullName "ndk;$env:NDK_VERSION" "platforms;android-36" "build-tools;36.0.0" | Out-Null
+          "ANDROID_NDK_ROOT=$sdk\ndk\$env:NDK_VERSION" >> $env:GITHUB_ENV
+          "JAVA_HOME=$env:JAVA_HOME_17_X64" >> $env:GITHUB_ENV
+
+      - name: Build Windows
+        shell: cmd
+        env:
+          VSDIR: C:\Program Files\Microsoft Visual Studio\2022\Enterprise
+        run: scripts\build-windows.bat
+
+      - name: Run tests
+        shell: cmd
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set PATH=C:\Qt\%QT_VERSION%\msvc2022_64\bin;%PATH%
+          build\windows\tst_export.exe
+
+      - name: Build web
+        shell: cmd
+        run: scripts\build-web.bat
+
+      - name: Build Android
+        shell: cmd
+        run: scripts\build-android.bat
+
+      - name: Package
+        shell: cmd
+        run: scripts\package-release.bat ${{ steps.ver.outputs.version }}
+
+      - name: Release files
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: BlackMiro ${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            **Windows (no install):** download `BlackMiro-${{ steps.ver.outputs.version }}-windows-portable.zip`, unzip anywhere, double-click `BlackMiro.exe`.
+            **Android:** install `BlackMiro-${{ steps.ver.outputs.version }}-android-arm64.apk` (allow installing unknown apps).
+            **Web:** open the app on this repository's GitHub Pages site, or host `BlackMiro-${{ steps.ver.outputs.version }}-web.zip` yourself.
+
+            Built from ${{ github.sha }}.
+          files: |
+            dist/BlackMiro-${{ steps.ver.outputs.version }}/BlackMiro-${{ steps.ver.outputs.version }}-windows-portable.zip
+            dist/BlackMiro-${{ steps.ver.outputs.version }}/BlackMiro-${{ steps.ver.outputs.version }}-android-arm64.apk
+            dist/BlackMiro-${{ steps.ver.outputs.version }}/BlackMiro-${{ steps.ver.outputs.version }}-web.zip
+
+      - name: Prepare Pages site
+        shell: pwsh
+        # Landing page (site/index.html, versions and repo filled in) at the root,
+        # the web app itself under /app/.
+        run: |
+          New-Item -ItemType Directory pages\app -Force | Out-Null
+          $html = Get-Content site\index.html -Raw
+          $html = $html.Replace('{{VERSION}}', '${{ steps.ver.outputs.version }}').Replace('{{REPO}}', '${{ github.repository }}')
+          Set-Content pages\index.html $html -Encoding utf8
+          foreach ($f in 'BlackMiro.html','BlackMiro.js','BlackMiro.wasm','qtloader.js','qtlogo.svg') {
+            if (Test-Path "build\web\$f") { Copy-Item "build\web\$f" pages\app\ }
+          }
+          Copy-Item pages\app\BlackMiro.html pages\app\index.html
+          New-Item pages\.nojekyll -ItemType File | Out-Null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: pages
+          include-hidden-files: true
+
+  pages:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

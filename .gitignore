@@ -1,0 +1,15 @@
+# Build outputs
+build/
+build-*/
+dist/
+
+# IDE and local tool settings
+*.user
+.qtcreator/
+.vs/
+.vscode/
+.claude/
+
+# OS
+Thumbs.db
+.DS_Store
