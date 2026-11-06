@@ -96,7 +96,6 @@ Dialog {
     }
 
     footer: DialogButtonBox {
-        defaultButton: pwGo
         alignment: Qt.AlignRight
         Button {
             text: "Cancel"

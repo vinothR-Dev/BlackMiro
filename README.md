@@ -9,6 +9,8 @@ No account, no login, no subscription — every feature is available to everyone
 
 | Platform | File | How to use |
 |---|---|---|
+| Windows 10/11 (64-bit) | `BlackMiro-1.0.0-windows-setup.exe` | Installer: run it, then start BlackMiro from the Start menu. |
+| Windows 10/11 (64-bit) | `BlackMiro-1.0.0-windows.msi` | MSI installer, for IT / Group Policy deployment. |
 | Windows 10/11 (64-bit) | `BlackMiro-1.0.0-windows-portable.zip` | Unzip anywhere, double-click `BlackMiro.exe`. Nothing to install. |
 | Android 9+ (64-bit ARM) | `BlackMiro-1.0.0-android-arm64.apk` | Allow "install unknown apps", open the APK. |
 | Web | `BlackMiro-1.0.0-web.zip` | Put the files on any static web server and open `index.html`. |
@@ -102,7 +104,8 @@ pan, double-tap edits text.
 Every push to `main` runs [.github/workflows/release.yml](.github/workflows/release.yml) on GitHub Actions:
 
 1. Builds Windows, web and Android, and runs the tests.
-2. Puts the Windows portable zip, the Android APK and the web zip on the **Releases** page, under the tag `v<version>`. The version comes from `project(BlackMiro VERSION …)` in `CMakeLists.txt`. Pushing again with the same version replaces that release's files; raise the version to make a new release.
+2. Launches the portable zip, the MSI and the setup .exe (installed silently) and the web app in a headless browser; the release is only published if each one opens its window.
+3. Puts the Windows setup .exe, MSI and portable zip, the Android APK and the web zip on the **Releases** page, under the tag `v<version>`. The version comes from `project(BlackMiro VERSION …)` in `CMakeLists.txt`. Pushing again with the same version replaces that release's files; raise the version to make a new release.
 3. Publishes **GitHub Pages**: a download page ([site/index.html](site/index.html)) at the root and the web app at `/app/`.
 
 One-time setup on GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.

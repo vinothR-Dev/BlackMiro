@@ -280,7 +280,6 @@ Dialog {
     }
 
     footer: DialogButtonBox {
-        defaultButton: exportGo
         alignment: Qt.AlignRight
         Button {
             text: "Close"

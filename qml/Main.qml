@@ -740,9 +740,8 @@ ApplicationWindow {
             text: qsTr("The template opens as a new board. Unsaved changes on the current board will be lost.")
         }
         footer: DialogButtonBox {
-            defaultButton: tplOk
             Button { text: qsTr("Cancel"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
-            Button { id: tplOk; text: qsTr("Open template"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
+            Button { id: tplOk; highlighted: true; text: qsTr("Open template"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
             onAccepted: canvas.newFromTemplate(templatesDialog.pendingTemplate)
         }
     }
@@ -764,9 +763,8 @@ ApplicationWindow {
             }
         }
         footer: DialogButtonBox {
-            defaultButton: bulkOk
             Button { text: qsTr("Cancel"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
-            Button { id: bulkOk; text: qsTr("Add notes"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
+            Button { id: bulkOk; highlighted: true; text: qsTr("Add notes"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
             onAccepted: canvas.addStickies(bulkText.text.split("\n"))
         }
     }
@@ -1012,9 +1010,8 @@ ApplicationWindow {
         }
         footer: DialogButtonBox {
             alignment: Qt.AlignRight
-            defaultButton: textGo
             Button { text: qsTr("Cancel"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
-            Button { id: textGo; text: qsTr("Save"); onClicked: textDialog.apply() }
+            Button { id: textGo; highlighted: true; text: qsTr("Save"); onClicked: textDialog.apply() }
         }
     }
 
@@ -1047,8 +1044,7 @@ ApplicationWindow {
             text: "Save changes to \"" + canvas.boardTitle + "\" before closing?"
         }
         footer: DialogButtonBox {
-            defaultButton: unsavedSave
-            Button { id: unsavedSave; text: qsTr("Save"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
+            Button { id: unsavedSave; highlighted: true; text: qsTr("Save"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
             Button { text: "Don't save"; DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole }
             Button { text: "Cancel"; DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
             onAccepted: {

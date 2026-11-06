@@ -68,13 +68,12 @@ Dialog {
 
     footer: DialogButtonBox {
         alignment: Qt.AlignRight
-        defaultButton: linkOk
         Button {
             text: qsTr("Remove link")
             visible: dlg.canvas.selLink.length > 0
             onClicked: { dlg.canvas.selLink = ""; dlg.close() }
         }
         Button { text: qsTr("Cancel"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
-        Button { id: linkOk; text: qsTr("Save"); onClicked: dlg.apply() }
+        Button { id: linkOk; highlighted: true; text: qsTr("Save"); onClicked: dlg.apply() }
     }
 }

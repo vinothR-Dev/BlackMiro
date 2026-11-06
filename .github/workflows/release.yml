@@ -122,9 +122,75 @@ jobs:
         shell: cmd
         run: scripts\build-android.bat
 
+      - name: Installer tools (Inno Setup, WiX)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          dotnet tool install --global wix --version 6.0.0
+          "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
+
       - name: Package
         shell: cmd
         run: scripts\package-release.bat ${{ steps.ver.outputs.version }}
+
+      # Every file goes through a real launch before anything is published.
+      - name: Smoke test - portable zip
+        shell: pwsh
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $dir = "$env:RUNNER_TEMP\portable"
+          Expand-Archive "dist\BlackMiro-$v\BlackMiro-$v-windows-portable.zip" $dir -Force
+          ./scripts/smoke-test-windows.ps1 -Exe "$dir\BlackMiro-$v-windows-portable\BlackMiro.exe" -Name portable -OutDir smoke
+
+      - name: Smoke test - MSI installer
+        shell: pwsh
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $msi = (Resolve-Path "dist\BlackMiro-$v\BlackMiro-$v-windows.msi").Path
+          $p = Start-Process msiexec -ArgumentList '/i', "`"$msi`"", '/qn', '/l*v', "`"$env:RUNNER_TEMP\msi.log`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content "$env:RUNNER_TEMP\msi.log" -Tail 60; throw "MSI install failed: $($p.ExitCode)" }
+          ./scripts/smoke-test-windows.ps1 -Exe "$env:ProgramFiles\BlackMiro\BlackMiro.exe" -Name msi -OutDir smoke
+          if (-not (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\BlackMiro.lnk")) { throw "MSI: Start menu shortcut missing" }
+          $p = Start-Process msiexec -ArgumentList '/x', "`"$msi`"", '/qn' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "MSI uninstall failed: $($p.ExitCode)" }
+
+      - name: Smoke test - setup.exe installer
+        shell: pwsh
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $dir = "$env:RUNNER_TEMP\BlackMiroSetup"
+          $p = Start-Process "dist\BlackMiro-$v\BlackMiro-$v-windows-setup.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$dir`"", "/LOG=`"$env:RUNNER_TEMP\setup.log`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content "$env:RUNNER_TEMP\setup.log" -Tail 60; throw "Setup failed: $($p.ExitCode)" }
+          ./scripts/smoke-test-windows.ps1 -Exe "$dir\BlackMiro.exe" -Name setup -OutDir smoke
+          $p = Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Uninstall failed: $($p.ExitCode)" }
+
+      - name: Smoke test - web app
+        shell: pwsh
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $web = "$env:RUNNER_TEMP\web"
+          Expand-Archive "dist\BlackMiro-$v\BlackMiro-$v-web.zip" $web -Force
+          $srv = Start-Process python -ArgumentList '-m', 'http.server', '8765', '--directory', $web -PassThru
+          New-Item -ItemType Directory "$env:RUNNER_TEMP\pw" -Force | Out-Null
+          Copy-Item scripts\smoke-test-web.mjs "$env:RUNNER_TEMP\pw\"
+          Push-Location "$env:RUNNER_TEMP\pw"
+          npm init -y | Out-Null
+          npm install playwright@1.49.1 --no-audit --no-fund | Out-Null
+          npx playwright install chromium | Out-Null
+          node smoke-test-web.mjs http://localhost:8765/index.html "$env:GITHUB_WORKSPACE\smoke\web.png"
+          $code = $LASTEXITCODE
+          Pop-Location
+          Stop-Process $srv -Force
+          exit $code
+
+      - name: Upload smoke-test screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-tests
+          path: smoke
+          if-no-files-found: ignore
 
       - name: Release files
         uses: softprops/action-gh-release@v2
@@ -134,12 +200,15 @@ jobs:
           target_commitish: ${{ github.sha }}
           make_latest: true
           body: |
-            **Windows (no install):** download `BlackMiro-${{ steps.ver.outputs.version }}-windows-portable.zip`, unzip anywhere, double-click `BlackMiro.exe`.
+            **Windows installer:** `BlackMiro-${{ steps.ver.outputs.version }}-windows-setup.exe` (recommended) or `BlackMiro-${{ steps.ver.outputs.version }}-windows.msi` (for IT / Group Policy deployment).
+            **Windows portable (no install):** download `BlackMiro-${{ steps.ver.outputs.version }}-windows-portable.zip`, unzip anywhere, double-click `BlackMiro.exe`.
             **Android:** install `BlackMiro-${{ steps.ver.outputs.version }}-android-arm64.apk` (allow installing unknown apps).
             **Web:** open the app on this repository's GitHub Pages site, or host `BlackMiro-${{ steps.ver.outputs.version }}-web.zip` yourself.
 
             Built from ${{ github.sha }}.
           files: |
+            dist/BlackMiro-${{ steps.ver.outputs.version }}/BlackMiro-${{ steps.ver.outputs.version }}-windows-setup.exe
+            dist/BlackMiro-${{ steps.ver.outputs.version }}/BlackMiro-${{ steps.ver.outputs.version }}-windows.msi
             dist/BlackMiro-${{ steps.ver.outputs.version }}/BlackMiro-${{ steps.ver.outputs.version }}-windows-portable.zip
             dist/BlackMiro-${{ steps.ver.outputs.version }}/BlackMiro-${{ steps.ver.outputs.version }}-android-arm64.apk
             dist/BlackMiro-${{ steps.ver.outputs.version }}/BlackMiro-${{ steps.ver.outputs.version }}-web.zip
