@@ -128,7 +128,8 @@ QVariantList CollabController::peers() const
 
 bool CollabController::isInviteLink(const QString &text) const
 {
-    return text.trimmed().startsWith(QLatin1String("blackmiro://join?"));
+    const QString t = text.trimmed();
+    return t.startsWith(QLatin1String("miru://join?")) || t.startsWith(QLatin1String("blackmiro://join?"));
 }
 
 bool CollabController::startHosting()
@@ -141,8 +142,8 @@ bool CollabController::startHosting()
         return false;
     m_relay = new RelayServer(this);
     quint16 port = kFirstPort;
-    // BLACKMIRO_RELAY_LOCALHOST=1: automated tests, no firewall prompt.
-    const bool localOnly = qEnvironmentVariableIsSet("BLACKMIRO_RELAY_LOCALHOST");
+    // MIRU_RELAY_LOCALHOST=1: automated tests, no firewall prompt.
+    const bool localOnly = qEnvironmentVariableIsSet("MIRU_RELAY_LOCALHOST");
     while (!m_relay->listen(port, localOnly) && port < kFirstPort + 20)
         ++port;
     if (!m_relay->port()) {
@@ -161,7 +162,7 @@ bool CollabController::startHosting()
     q.addQueryItem(QStringLiteral("ws"), publicUrl);
     q.addQueryItem(QStringLiteral("room"), room);
     q.addQueryItem(QStringLiteral("key"), secret);
-    m_invite = QStringLiteral("blackmiro://join?") + q.toString(QUrl::FullyEncoded);
+    m_invite = QStringLiteral("miru://join?") + q.toString(QUrl::FullyEncoded);
 
     // The host's board becomes the session's starting state.
     m_sync.reset();
@@ -179,8 +180,8 @@ bool CollabController::join(const QString &link)
     const QString ws = q.queryItemValue(QStringLiteral("ws"), QUrl::FullyDecoded);
     const QString room = q.queryItemValue(QStringLiteral("room"));
     const QString secret = q.queryItemValue(QStringLiteral("key"));
-    if (url.scheme() != QLatin1String("blackmiro") || ws.isEmpty() || room.isEmpty() || secret.size() < 16) {
-        emit message(QStringLiteral("That isn't a BlackMiro invite link."));
+    if ((url.scheme() != QLatin1String("miru") && url.scheme() != QLatin1String("blackmiro")) || ws.isEmpty() || room.isEmpty() || secret.size() < 16) {
+        emit message(QStringLiteral("That isn't a Miru invite link."));
         return false;
     }
     m_invite = link.trimmed();

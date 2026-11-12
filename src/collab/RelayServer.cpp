@@ -12,7 +12,7 @@ constexpr qint64 kMaxFrameBytes = 64ll << 20;   // single message cap (images tr
 RelayServer::RelayServer(QObject *parent)
     : QObject(parent)
 {
-    m_server = new QWebSocketServer(QStringLiteral("BlackMiro relay"), QWebSocketServer::NonSecureMode, this);
+    m_server = new QWebSocketServer(QStringLiteral("Miru relay"), QWebSocketServer::NonSecureMode, this);
     m_server->setMaxPendingConnections(64);
     connect(m_server, &QWebSocketServer::newConnection, this, &RelayServer::onNewConnection);
 }

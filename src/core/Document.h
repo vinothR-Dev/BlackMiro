@@ -42,6 +42,7 @@ public:
     QHash<QString, Asset> assets;
     QList<BoardVersion> versions;          // saved snapshots (version history)
     QString title = QStringLiteral("Untitled board");
+    QString uid;   // stable id for cloud saves and share links (made on first cloud save)
     QString owner;                         // email of the local profile that created it
     bool isPrivate = false;                // saved encrypted; PDF exports password-protected
     QList<Layer> layers;

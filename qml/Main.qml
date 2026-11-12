@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 ApplicationWindow {
     id: win
@@ -10,7 +10,7 @@ ApplicationWindow {
     width: 1440
     height: 900
     visible: true
-    title: (canvas.modified ? "• " : "") + canvas.boardTitle + (canvas.boardPrivate ? " (private)" : "") + " — BlackMiro"
+    title: (canvas.modified ? "• " : "") + canvas.boardTitle + (canvas.boardPrivate ? " (private)" : "") + " — Miru"
     color: Theme.canvas
 
     // Basic-style controls (fields, menus, dialogs, check boxes) follow the theme.
@@ -87,6 +87,15 @@ ApplicationWindow {
         canvas.clearSelection()
         canvas.simulateDrag(Qt.point(600, 420), Qt.point(603, 445))
     }
+    function demoArrange() {
+        showHome = false
+        canvas.addStickyAt(300, 300); canvas.endTextEdit()
+        canvas.addStickyAt(700, 520); canvas.endTextEdit()
+        canvas.addStickyAt(520, 700); canvas.endTextEdit()
+        canvas.selectAll()
+        canvas.arrangeSelection(false)
+    }
+    function demoExport() { showHome = false; exportDialog.open() }
     function demoShare() { showHome = false; shareDialog.joinOnly = false; shareDialog.open() }
     function demoConnectDots() {
         showHome = false
@@ -225,6 +234,23 @@ ApplicationWindow {
         Component.onCompleted: forceActiveFocus()
     }
 
+    // Encrypted boards on a GitHub branch + share links (see CloudStore.h).
+    CloudStore {
+        id: cloud
+        userEmail: AppState.email
+        onMessage: (text) => toast.show(text)
+        onFailed: (text) => toast.show(text)
+        onLinkReady: (link) => { cloud.copyLink(link) }
+        onOpened: (title) => { win.showHome = false; toast.show(qsTr("Opened \"%1\"").arg(title)) }
+        Component.onCompleted: {
+            const link = startupLink()        // web: page opened from a share link
+            if (link.length > 0) {
+                win.showHome = false
+                openLink(canvas, link)
+            }
+        }
+    }
+
     CollabController {
         id: collab
         canvas: canvas
@@ -237,9 +263,9 @@ ApplicationWindow {
         target: canvas
         function onBoardSaved(path, title) { AppState.addRecent(path, title, canvas.saveThumbnail()) }
         function onLinkActivated(url) {
-            if (url === "blackmiro:edit-link") {
+            if (url === "miru:edit-link") {
                 if (canvas.selectionCount > 0) linkDialog.open()
-            } else if (url === "blackmiro:cursor-chat") {
+            } else if (url === "miru:cursor-chat") {
                 cursorChat.start(win.pointer.x, win.pointer.y)
             } else if (/^(https?|mailto):/i.test(url)) {
                 Qt.openUrlExternally(url)
@@ -360,16 +386,20 @@ ApplicationWindow {
                 ToolTip.visible: hovered
                 ToolTip.delay: 450
                 ToolTip.text: qsTr("Go to Home")
-                Accessible.name: qsTr("BlackMiro, go to Home")
+                Accessible.name: qsTr("Miru, go to Home")
                 onClicked: win.showHome = true
                 background: Rectangle { radius: 8; color: brand.hovered ? Theme.hover : "transparent" }
-                contentItem: Label {
-                    text: "BlackMiro"
-                    font.pixelSize: 19
-                    font.weight: Font.Bold
-                    font.letterSpacing: -0.4
-                    color: Theme.text
-                    verticalAlignment: Text.AlignVCenter
+                contentItem: Row {
+                    spacing: 4
+                    MiruLogo { width: 28; height: 28; anchors.verticalCenter: parent.verticalCenter }
+                    Label {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Miru"
+                        font.pixelSize: 19
+                        font.weight: Font.Bold
+                        font.letterSpacing: -0.4
+                        color: Theme.text
+                    }
                 }
             }
             Rectangle { visible: brand.visible; Layout.preferredWidth: 1; Layout.preferredHeight: 22; color: Theme.border }
@@ -461,6 +491,7 @@ ApplicationWindow {
         MenuItem { text: qsTr("Layers"); onTriggered: win.layersOpen = !win.layersOpen }
         MenuItem { text: qsTr("Templates…"); onTriggered: templatesDialog.open() }
         MenuItem { text: qsTr("Share…"); onTriggered: win.share() }
+        MenuItem { text: qsTr("Open share link…"); onTriggered: win.joinSession() }
         MenuItem { text: qsTr("Join live session…"); onTriggered: win.joinSession() }
     }
 
@@ -872,7 +903,8 @@ ApplicationWindow {
         visible: win.width >= 700
         anchors { left: parent.left; bottom: parent.bottom; margins: 16 }
         color: Theme.mutedText
-        text: canvas.itemCount + " objects" + (canvas.selectionCount > 0 ? " · " + canvas.selectionCount + " selected" : "")
+        text: (canvas.itemCount === 1 ? qsTr("1 object") : qsTr("%1 objects").arg(canvas.itemCount))
+              + (canvas.selectionCount > 0 ? " · " + qsTr("%1 selected").arg(canvas.selectionCount) : "")
               + (canvas.boardPrivate ? " · Private board" : "")
     }
 
@@ -1077,6 +1109,8 @@ ApplicationWindow {
     LiveSessionDialog {
         id: shareDialog
         collab: collab
+        cloud: cloud
+        canvas: canvas
         onSaveCopyRequested: win.saveAs()
         onExportRequested: exportDialog.open()
     }

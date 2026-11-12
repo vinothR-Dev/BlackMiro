@@ -18,6 +18,7 @@ void Document::clear()
     versions.clear();
     m_imageCache.clear();
     title = QStringLiteral("Untitled board");
+    uid.clear();
     owner.clear();
     isPrivate = false;
     layers.clear();

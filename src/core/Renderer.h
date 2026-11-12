@@ -3,6 +3,8 @@
 #include "Document.h"
 
 #include <QFont>
+#include <QHash>
+#include <QImage>
 #include <QList>
 #include <QPainter>
 
@@ -28,6 +30,11 @@ struct Options
     bool losslessImages = true;     // sets QPainter::LosslessImageRendering (PDF: Flate, not JPEG)
     QStringList hideTextIds;        // item currently being text-edited on screen
     QColor frameTitleColor = QColor(80, 80, 80);   // lighter on a dark screen background
+    // On screen only: downscaled copies of images (asset key -> image) and the
+    // world-to-device scale. A preview is used when it has enough pixels for the
+    // size the image is drawn at; exports leave this empty and use the originals.
+    const QHash<QString, QImage> *previews = nullptr;
+    double deviceScale = 1.0;
 };
 
 // Draws every item intersecting `worldClip`. The painter's transform must map
@@ -38,7 +45,7 @@ void paintItem(QPainter &p, const Document &doc, const BoardItem &item, const Op
 
 QFont fontFor(const BoardItem &item);
 // Colour-emoji font family: the system's own (Segoe UI Emoji, Apple Color Emoji,
-// Noto Color Emoji, ...) when installed, else BlackMiro's bundled emoji font
+// Noto Color Emoji, ...) when installed, else Miru's bundled emoji font
 // (:/fonts/emoji.ttf, used by the browser build). Empty when neither exists.
 QString emojiFamily();
 QRectF textRect(const BoardItem &item);

@@ -277,7 +277,15 @@ void paintItem(QPainter &p, const Document &doc, const BoardItem &item, const Op
     }
 
     case BoardItem::Type::Image: {
-        const QImage img = doc.assetImage(item.assetKey);
+        QImage img;
+        if (opt.previews) {
+            const auto pv = opt.previews->constFind(item.assetKey);
+            if (pv != opt.previews->constEnd()
+                && item.crop.width() * pv->width() >= item.rect.width() * opt.deviceScale * 0.9)
+                img = *pv;
+        }
+        if (img.isNull())
+            img = doc.assetImage(item.assetKey);
         if (img.isNull()) {
             p.setPen(QPen(Qt::gray, 1, Qt::DashLine));
             p.setBrush(QColor(240, 240, 240));

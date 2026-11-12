@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // "Link to": a web address, or another frame on this board.
 Dialog {

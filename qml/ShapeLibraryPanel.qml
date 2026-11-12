@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // "More shapes": searchable, categorised shape library with colour presets.
 // Pick a shape, then click or drag on the board to place it.

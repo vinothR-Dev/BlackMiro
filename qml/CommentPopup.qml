@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // Card next to a comment pin. Saved when it closes; an empty comment is removed.
 Popup {

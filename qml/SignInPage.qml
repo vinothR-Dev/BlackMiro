@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Shapes
-import BlackMiro
+import Miru
 
 // Email-only, password-less sign-in / sign-up, shown only when an action needs it
 // (saving a board, sharing). There is no server: the email is a local profile.
@@ -48,25 +48,7 @@ Rectangle {
     MouseArea { anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.AllButtons; onWheel: (w) => w.accepted = true }
     Keys.onEscapePressed: page.dismissed()
 
-    component Logo: Rectangle {
-        implicitWidth: 34
-        implicitHeight: 34
-        radius: 10
-        color: Theme.text
-        Shape {
-            anchors.centerIn: parent
-            width: 24; height: 24
-            preferredRendererType: Shape.CurveRenderer
-            ShapePath {
-                strokeColor: Theme.surface
-                strokeWidth: 2
-                fillColor: "transparent"
-                capStyle: ShapePath.RoundCap
-                joinStyle: ShapePath.RoundJoin
-                PathSvg { path: "M4 4 H11 V11 H4 Z M17.5 13 a3.5 3.5 0 1 0 0.01 0 M11 11 L15 14.5 M4 20 H20" }
-            }
-        }
-    }
+    component Logo: MiruLogo { implicitWidth: 38; implicitHeight: 38 }
 
     // ---- Top bar
     RowLayout {
@@ -74,7 +56,7 @@ Rectangle {
         spacing: 10
         Logo {}
         Label {
-            text: "BlackMiro"
+            text: "Miru"
             font.pixelSize: 19
             font.weight: Font.DemiBold
             color: Theme.text
@@ -116,7 +98,7 @@ Rectangle {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: page.signUp ? qsTr("Create your BlackMiro space") : qsTr("Welcome back")
+                text: page.signUp ? qsTr("Create your Miru space") : qsTr("Welcome back")
                 font.pixelSize: 26
                 font.weight: Font.DemiBold
                 color: Theme.text
@@ -184,7 +166,7 @@ Rectangle {
                 textFormat: Text.StyledText
                 color: Theme.subText
                 linkColor: Theme.accent
-                text: page.signUp ? qsTr("Already used BlackMiro here? <a href='x'>Sign in</a>")
+                text: page.signUp ? qsTr("Already used Miru here? <a href='x'>Sign in</a>")
                                   : qsTr("New here? <a href='x'>Create a space</a>")
                 onLinkActivated: page.signUp = !page.signUp
                 HoverHandler { cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor }

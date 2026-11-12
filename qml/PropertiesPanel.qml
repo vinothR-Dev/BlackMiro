@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // Floating context toolbar for the current selection.
 Rectangle {

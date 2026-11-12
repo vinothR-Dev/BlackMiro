@@ -1,6 +1,6 @@
 pragma Singleton
 import QtQuick
-import BlackMiro
+import Miru
 
 // All UI colours in one place. AppState.dark follows the theme button
 // (System / Light / Dark); "System" tracks the operating system.

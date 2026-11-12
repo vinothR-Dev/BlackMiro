@@ -1,23 +1,26 @@
-# BlackMiro
+<img src="assets/miru-icon.svg" width="72" alt="Miru logo">
+
+# Miru
 
 An original, free, offline-first infinite whiteboard built with **Qt 6 / QML / C++20**.
 No account, no login, no subscription — every feature is available to everyone.
 
 > **Repo description:** Free, open whiteboard in the style of Miro, built with Qt 6 / QML / C++ for Windows, macOS, Linux, Android and the web. Sticky notes, shapes, smart arrows, mind maps, frames, templates, comments and live collaboration, plus lossless export to PDF/SVG/PNG/TIFF/WebP. No subscription, no password.
 
-## Download (v1.0.0)
+## Download (v1.1.0)
 
 | Platform | File | How to use |
 |---|---|---|
-| Windows 10/11 (64-bit) | `BlackMiro-1.0.0-windows-portable.zip` | Unzip anywhere, double-click `BlackMiro.exe`. Nothing to install. |
-| Android 9+ (64-bit ARM) | `BlackMiro-1.0.0-android-arm64.apk` | Allow "install unknown apps", open the APK. |
-| Web | `BlackMiro-1.0.0-web.zip` | Put the files on any static web server and open `index.html`. |
+| Windows 10/11 (64-bit) | `Miru-1.1.0-windows-portable.zip` | Unzip anywhere, double-click `Miru.exe`. Nothing to install. |
+| Android 9+ (64-bit ARM) | `Miru-1.1.0-android-arm64.apk` | Allow "install unknown apps", open the APK. |
+| Web | `Miru-1.1.0-web.zip` | Put the files on any static web server and open `index.html`. |
 | macOS / Linux | build from source (below) | |
 
-## Features (v1.0)
+## Features (v1.1)
 
 **Board**
-- Infinite canvas: pan, zoom to cursor, pinch zoom, fit to screen, start view, mouse or trackpad mode
+- Infinite canvas: scroll to zoom (eased), hand tool with a smooth glide, pinch zoom, fit to screen, start view, mouse or trackpad mode
+- Large boards stay smooth: images are decoded in the background at screen size; full resolution only when you zoom in or export
 - Dot or line grid, snap to grid, smart alignment guides
 - Gap measurements while dragging, with snapping to equal gaps and to the gap of neighbouring pairs
 - Sticky notes, text, shapes (built-in plus a shape library), icons, emoji, pen, highlighter, smart pen, eraser, lasso, frames, images
@@ -30,19 +33,25 @@ No account, no login, no subscription — every feature is available to everyone
 **Editing**
 - Floating toolbars above the selection (hidden while you drag); image toolbar with flip, crop, alt text and download original
 - Right-click menus matched to Miro: arrange and layers, lock, group, link to object or URL, copy as image, save as template, Info (owner, created, last modified)
-- Undo/redo, copy/paste (also images and text from other apps), duplicate, Alt+drag copy, keyboard shortcuts (press **F1** for the list)
+- Paste lands at the mouse pointer (copies, images and text from other apps)
+- Line up the selection in a row (`\`) or a column (`Shift+\`), also in the right-click menu under Arrange
+- Undo/redo, duplicate, Alt+drag copy, keyboard shortcuts (press **F1** for the list)
 
 **Files and sharing**
 - Native `.board` file (ZIP: JSON plus the original image files, byte for byte) with version history
 - Private boards protected by a password; sign-in by email (no password) is asked only when you save or share
+- **Share links:** Share → Create share link saves the board **encrypted** to the `miru-boards` branch of a GitHub repository (one folder per person) and copies a link; anyone with the link opens it in the browser or the app. GitHub only stores ciphertext; the key is in the link's `#` part, which browsers never send to servers
 - Live collaboration: Share creates an invite link and copies it for you ("New link" makes a fresh one); shared cursors, selections and edits, end-to-end encrypted
 - Templates, including your own; Saved files library
 - System / Light / Dark theme in one click
 
 ## Export
 
-Formats: **BOARD, PDF, SVG, PNG, TIFF, WebP, JPEG, AVIF\*, CSV, Markdown, JSON** — any combination,
-or all at once into one ZIP (one folder per format). Scope: whole board, selection, or each frame.
+The Export dialog asks three things: **format** (PDF is preselected), **quality** (Best / Balanced / Smallest)
+and **what to export** (whole board, selection, each frame). Transparent background, ZIP bundling and custom
+DPI/quality are under *More options*.
+
+Formats: **Miru board, PDF, SVG, PNG, TIFF, WebP, JPEG, AVIF\*, CSV, Markdown, JSON**, or all of them in one ZIP.
 
 | Compression | Meaning | Raster | Embedded images | `.board` |
 |---|---|---|---|---|
@@ -78,7 +87,7 @@ scripts\build-web.bat
 python -m http.server 8080 --directory build\web
 ```
 
-Then open http://localhost:8080/BlackMiro.html. Host the four files in `build\web`
+Then open http://localhost:8080/Miru.html. Host the four files in `build\web`
 (`.html`, `.js`, `.wasm`, `qtloader.js`) on any static web server. In the browser, Open / Save /
 Insert image use the browser's own file dialogs, and Export produces a single download
 (a ZIP when several files are produced).
@@ -87,7 +96,7 @@ Insert image use the browser's own file dialogs, and Export produces a single do
 
 ```bat
 scripts\build-android.bat
-adb install -r build\android\BlackMiro.apk
+adb install -r build\android\Miru.apk
 ```
 
 The APK is for 64-bit ARM phones (Android 9+) and is signed with your local Android debug key,
@@ -102,7 +111,7 @@ pan, double-tap edits text.
 Every push to `main` runs [.github/workflows/release.yml](.github/workflows/release.yml) on GitHub Actions:
 
 1. Builds Windows, web and Android, and runs the tests.
-2. Puts the Windows portable zip, the Android APK and the web zip on the **Releases** page, under the tag `v<version>`. The version comes from `project(BlackMiro VERSION …)` in `CMakeLists.txt`. Pushing again with the same version replaces that release's files; raise the version to make a new release.
+2. Puts the Windows portable zip, the Android APK and the web zip on the **Releases** page, under the tag `v<version>`. The version comes from `project(Miru VERSION …)` in `CMakeLists.txt`. Pushing again with the same version replaces that release's files; raise the version to make a new release.
 3. Publishes **GitHub Pages**: a download page ([site/index.html](site/index.html)) at the root and the web app at `/app/`.
 
 One-time setup on GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.

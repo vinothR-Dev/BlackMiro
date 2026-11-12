@@ -12,8 +12,8 @@ cmake -S . -B build\windows -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_P
 cmake --build build\windows || exit /b 1
 
 if not exist build\windows\deploy mkdir build\windows\deploy
-copy /y build\windows\BlackMiro.exe build\windows\deploy\ >nul
-copy /y build\windows\BlackMiroRelay.exe build\windows\deploy\ >nul
-"%QT_DIR%\bin\windeployqt.exe" --release --qmldir qml --no-translations build\windows\deploy\BlackMiro.exe || exit /b 1
+copy /y build\windows\Miru.exe build\windows\deploy\ >nul
+copy /y build\windows\MiruRelay.exe build\windows\deploy\ >nul
+"%QT_DIR%\bin\windeployqt.exe" --release --qmldir qml --no-translations build\windows\deploy\Miru.exe || exit /b 1
 echo.
-echo Built: build\windows\deploy\BlackMiro.exe
+echo Built: build\windows\deploy\Miru.exe

@@ -300,7 +300,7 @@ QByteArray renderPdf(const QList<Page> &pages, const Settings &s, bool transpare
     QBuffer buf(&out);
     buf.open(QIODevice::WriteOnly);
     QPdfWriter writer(&buf);
-    writer.setCreator(QStringLiteral("BlackMiro"));
+    writer.setCreator(QStringLiteral("Miru"));
     writer.setTitle(title);
     writer.setResolution(1200);   // vector coordinate precision, not image resolution
     writer.setPageMargins(QMarginsF(0, 0, 0, 0));

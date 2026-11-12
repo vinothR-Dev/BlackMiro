@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Shapes
-import BlackMiro
+import Miru
 
 // Pop-out menu next to the toolbar for "Shapes and lines" and "Stickers and emoji".
 Popup {

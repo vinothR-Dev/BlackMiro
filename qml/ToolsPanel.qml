@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Shapes
-import BlackMiro
+import Miru
 
 // "+" panel: every tool, searchable, grouped, each with "Pin to toolbar".
 Popup {

@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Shapes
-import BlackMiro
+import Miru
 
 // Start screen: new board, templates, recent boards, join a live session.
 Rectangle {
@@ -47,21 +47,8 @@ Rectangle {
         id: topBar
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 20 }
         spacing: 10
-        Rectangle {
-            implicitWidth: 34; implicitHeight: 34; radius: 10
-            color: Theme.text
-            Shape {
-                anchors.centerIn: parent
-                width: 24; height: 24
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                    strokeColor: Theme.surface; strokeWidth: 2; fillColor: "transparent"
-                    capStyle: ShapePath.RoundCap; joinStyle: ShapePath.RoundJoin
-                    PathSvg { path: "M4 4 H11 V11 H4 Z M17.5 13 a3.5 3.5 0 1 0 0.01 0 M11 11 L15 14.5 M4 20 H20" }
-                }
-            }
-        }
-        Label { text: "BlackMiro"; font.pixelSize: 19; font.weight: Font.DemiBold; color: Theme.text }
+        MiruLogo { implicitWidth: 38; implicitHeight: 38 }
+        Label { text: "Miru"; font.pixelSize: 19; font.weight: Font.DemiBold; color: Theme.text }
         Item { Layout.fillWidth: true }
         Button { text: qsTr("Join live session"); onClicked: home.joinRequested() }
         Button { visible: !home.isWeb; text: qsTr("Open file…"); onClicked: home.openRequested() }
@@ -102,7 +89,7 @@ Rectangle {
             // ---- Templates
             Label {
                 Layout.topMargin: 28
-                text: qsTr("Start something new")
+                text: qsTr("Templates")
                 font.pixelSize: 17
                 font.weight: Font.DemiBold
                 color: Theme.text

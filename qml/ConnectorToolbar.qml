@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import QtQuick.Shapes
-import BlackMiro
+import Miru
 
 // Floating toolbar for a selected line or arrow: start and end caps, swap
 // direction, line type (thickness, straight / elbow / curved, solid / dashed /

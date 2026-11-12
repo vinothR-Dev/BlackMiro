@@ -3,23 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BlackMiro</title>
+<title>Miru</title>
+<link rel="icon" type="image/svg+xml" href="miru-icon.svg">
 <meta name="description" content="Free whiteboard for Windows, Android and the web. Sticky notes, shapes, smart arrows, mind maps, templates and live collaboration. No subscription.">
 <style>
   :root {
     --bg: #f5f6f8; --surface: #ffffff; --border: #e3e5e9; --text: #1f2329; --sub: #5b6170;
-    --accent: #4262ff; --accent-hover: #3655f5; --accent-text: #ffffff;
+    --accent: #4262ff; --accent-hover: #3655f5; --accent-text: #ffffff; --logo-top: #9a9a9a; --logo-bottom: #2c2c2c;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #15171c; --surface: #23262e; --border: #373c47; --text: #e9ebf0; --sub: #a4aab6;
-            --accent: #6f88ff; --accent-hover: #8197ff; }
+            --accent: #6f88ff; --accent-hover: #8197ff; --logo-top: #f2f3f5; --logo-bottom: #9ba1ad; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
          font: 16px/1.55 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
   main { max-width: 880px; margin: 0 auto; padding: 56px 16px 40px; }
   .brand { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
-  .logo { width: 40px; height: 40px; border-radius: 11px; background: var(--text); display: grid; place-items: center; }
+  .logo { width: 44px; height: 44px; }
   h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.15; margin: 36px 0 12px; letter-spacing: -0.8px; }
   .lead { color: var(--sub); font-size: 18px; max-width: 60ch; margin: 0 0 28px; }
   .cta { display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 12px;
@@ -40,11 +41,13 @@
 <body>
 <main>
   <div class="brand">
-    <span class="logo" aria-hidden="true">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--bg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 4 H11 V11 H4 Z M17.5 13 a3.5 3.5 0 1 0 0.01 0 M11 11 L15 14.5 M4 20 H20"/></svg>
-    </span>
-    BlackMiro
+    <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
+      <defs><linearGradient id="lg" gradientUnits="userSpaceOnUse" x1="0" y1="8" x2="0" y2="93">
+        <stop offset="0" style="stop-color: var(--logo-top)"/><stop offset="1" style="stop-color: var(--logo-bottom)"/></linearGradient></defs>
+      <path fill="url(#lg)" d="M1.7 57.1 C17.3 55.4 25.6 44.7 32.3 46.7 C40.6 49.2 38.6 60.2 35.6 66.9 C31.4 76.5 33.6 88.8 42.4 88.8 C52.4 88.8 56.8 78.6 55.5 68.8 C54.4 60.2 53.8 49.1 61.8 46.7 C69.2 44.6 81.3 55.2 98.3 57.4 C81 57.6 68.8 48.8 62.4 50.9 C58.6 52.6 58.8 60 59.8 68.2 C61.2 79.2 56 93 42.4 93 C30.6 93 26 77.8 31.4 65.3 C34 59.6 36 52.6 31.9 50.9 C26.2 48.8 17.3 57.4 1.7 57.1 Z"/>
+      <path fill="url(#lg)" d="M44.2 8 C46.5 24 51.5 44 52.4 62 C53.3 77 49.5 86.4 43.6 86.4 C38.6 86.4 36.6 81.6 37.6 76.6 C38.8 70.6 44.2 66.4 45.4 56 C46.3 44 45.6 24 44.2 8 Z"/>
+    </svg>
+    Miru
   </div>
 
   <h1>The whiteboard where every feature is free.</h1>
@@ -55,19 +58,19 @@
   <div class="grid">
     <div class="card">
       <h2>Windows</h2>
-      <p>Portable: unzip and double-click <code>BlackMiro.exe</code>. Nothing to install.</p>
-      <a href="https://github.com/{{REPO}}/releases/download/v{{VERSION}}/BlackMiro-{{VERSION}}-windows-portable.zip">Download .zip</a>
+      <p>Portable: unzip and double-click <code>Miru.exe</code>. Nothing to install.</p>
+      <a href="https://github.com/{{REPO}}/releases/download/v{{VERSION}}/Miru-{{VERSION}}-windows-portable.zip">Download .zip</a>
     </div>
     <div class="card">
       <h2>Android</h2>
       <p>For 64-bit phones, Android 9 or newer. Allow installing unknown apps.</p>
-      <a href="https://github.com/{{REPO}}/releases/download/v{{VERSION}}/BlackMiro-{{VERSION}}-android-arm64.apk">Download .apk</a>
+      <a href="https://github.com/{{REPO}}/releases/download/v{{VERSION}}/Miru-{{VERSION}}-android-arm64.apk">Download .apk</a>
     </div>
     <div class="card">
       <h2>Web</h2>
       <p>Runs in the browser. Or host the files on your own server.</p>
       <a href="app/">Open the web app</a><br>
-      <a href="https://github.com/{{REPO}}/releases/download/v{{VERSION}}/BlackMiro-{{VERSION}}-web.zip">Download web files</a>
+      <a href="https://github.com/{{REPO}}/releases/download/v{{VERSION}}/Miru-{{VERSION}}-web.zip">Download web files</a>
     </div>
   </div>
 

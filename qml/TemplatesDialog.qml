@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // Template gallery opened from the board toolbar: search + use-case categories.
 Dialog {

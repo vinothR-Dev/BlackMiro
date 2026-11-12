@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // Right-click (or press-and-hold) menus, laid out like Miro's:
 // one for the empty board, one for the selected object(s).
@@ -129,6 +129,9 @@ Item {
             Item_ { label: qsTr("Bring to front"); shortcut: "PgUp"; onTriggered: root.canvas.bringToFront() }
             Item_ { label: qsTr("Send backward"); shortcut: "Shift+PgDn"; onTriggered: root.canvas.sendBackward() }
             Item_ { label: qsTr("Send to back"); shortcut: "PgDn"; onTriggered: root.canvas.sendToBack() }
+            MenuSeparator {}
+            Item_ { label: qsTr("Line up in a row"); shortcut: "\\"; enabled: root.canvas.selectionCount > 1; onTriggered: root.canvas.arrangeSelection(false) }
+            Item_ { label: qsTr("Line up in a column"); shortcut: "Shift+\\"; enabled: root.canvas.selectionCount > 1; onTriggered: root.canvas.arrangeSelection(true) }
             MenuSeparator {}
             Menu {
                 id: layerMenu

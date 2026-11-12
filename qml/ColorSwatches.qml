@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import BlackMiro
+import Miru
 
 // Grid of colour chips. Emits picked(color); "transparent" is shown as a crossed chip.
 Grid {

@@ -2,25 +2,42 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
+// Export in three choices: format (PDF by default), quality, and what to export.
+// Everything else sits under "More options".
 Dialog {
     id: dlg
 
     required property BoardCanvas canvas
 
-    title: "Export board"
+    title: qsTr("Export")
     modal: true
     anchors.centerIn: Overlay.overlay
-    width: Math.min(640, parent ? parent.width - 32 : 640)
-    height: Math.min(implicitHeight, parent ? parent.height - 32 : 800)
-    padding: 20
+    width: Math.min(600, parent ? parent.width - 32 : 600)
+    height: Math.min(implicitHeight, parent ? parent.height - 32 : 760)
+    padding: 18
 
+    // One format, or every format at once ("ALL").
+    property string format: "PDF"
     property string compression: "low"
-    property var selected: ({ "PNG": true })
+    property int scope: 0                     // 0 board, 1 selection, 2 each frame
+    property bool advanced: false
     property string resultText: ""
     property bool resultOk: true
     property url resultFolder
+
+    readonly property var mainFormats: [
+        { name: "PDF", label: qsTr("PDF"), hint: qsTr("Document, vector") },
+        { name: "PNG", label: qsTr("PNG"), hint: qsTr("Image, lossless") },
+        { name: "SVG", label: qsTr("SVG"), hint: qsTr("Vector graphic") },
+        { name: "JPEG", label: qsTr("JPEG"), hint: qsTr("Photo, small") },
+        { name: "WEBP", label: qsTr("WebP"), hint: qsTr("Web image") },
+        { name: "TIFF", label: qsTr("TIFF"), hint: qsTr("Print image") },
+        { name: "BOARD", label: qsTr("Miru board"), hint: qsTr("Editable file") },
+        { name: "ALL", label: qsTr("All formats"), hint: qsTr("One ZIP") }
+    ]
+    readonly property var otherFormats: ["CSV", "MARKDOWN", "JSON", "AVIF"]
 
     ExportController {
         id: ctl
@@ -32,20 +49,18 @@ Dialog {
         }
     }
 
-    function selectedNames() {
-        let out = []
+    function available(name) {
+        if (name === "ALL")
+            return true
         for (const f of ctl.formats)
-            if (f.available && dlg.selected[f.name])
-                out.push(f.name)
-        return out
+            if (f.name === name)
+                return f.available
+        return false
     }
-
-    function setAll(on) {
-        let s = {}
-        for (const f of ctl.formats)
-            s[f.name] = on && f.available
-        dlg.selected = s
-        zipBox.checked = on
+    function selectedNames() {
+        if (dlg.format !== "ALL")
+            return [dlg.format]
+        return ctl.formats.filter(f => f.available).map(f => f.name)
     }
 
     onOpened: {
@@ -53,13 +68,13 @@ Dialog {
         exportPassword.text = ""
         if (fileName.text.length === 0)
             fileName.text = canvas.boardTitle.replace(/[\\/:*?"<>|]+/g, "-")
-        scopeBox.currentIndex = canvas.selectionCount > 0 ? 1 : 0
+        scope = canvas.selectionCount > 0 ? 1 : 0
     }
 
     // Android: the system "create document" picker; the export is written to the chosen URI.
     FileDialog {
         id: saveAsDialog
-        title: "Save export as"
+        title: qsTr("Save export as")
         fileMode: FileDialog.SaveFile
         onAccepted: ctl.startToUrl(dlg.pendingOptions, selectedFile)
     }
@@ -69,11 +84,11 @@ Dialog {
         return {
             formats: dlg.selectedNames(),
             compression: dlg.compression,
-            scope: ["board", "selection", "frames"][scopeBox.currentIndex],
+            scope: ["board", "selection", "frames"][dlg.scope],
             folder: folderField.text,
             baseName: fileName.text,
             transparent: transparentBox.checked,
-            zip: zipBox.checked,
+            zip: dlg.format === "ALL" || zipBox.checked,
             customDpi: dpiBox.value,
             customQuality: Math.round(qualitySlider.value),
             custom16Bit: bitBox.checked,
@@ -97,8 +112,52 @@ Dialog {
 
     FolderDialog {
         id: folderDialog
-        title: "Choose export folder"
+        title: qsTr("Choose export folder")
         onAccepted: folderField.text = ctl.toLocalPath(selectedFolder)
+    }
+
+    // Selectable card (format / quality / scope): name with a short hint below.
+    component Choice: AbstractButton {
+        id: choice
+        property string hint
+        property bool current
+        implicitHeight: hint.length > 0 ? 46 : 36
+        Layout.preferredWidth: 1          // equal widths inside a GridLayout row
+        hoverEnabled: true
+        focusPolicy: Qt.StrongFocus
+        Accessible.role: Accessible.RadioButton
+        Accessible.checked: current
+        Accessible.description: hint
+        background: Rectangle {
+            radius: 9
+            color: choice.current ? Theme.accentSoft : choice.hovered ? Theme.hover : Theme.surfaceAlt
+            border.width: choice.current ? 2 : 1
+            border.color: choice.current || choice.activeFocus ? Theme.accent : Theme.border
+        }
+        contentItem: Column {
+            spacing: 0
+            leftPadding: 10
+            topPadding: (choice.height - implicitHeight) / 2
+            Label {
+                text: choice.text
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
+                color: choice.enabled ? (choice.current ? Theme.accent : Theme.text) : Theme.iconDisabled
+            }
+            Label {
+                text: choice.hint
+                font.pixelSize: 11
+                color: choice.enabled ? Theme.subText : Theme.iconDisabled
+                visible: text.length > 0
+            }
+        }
+    }
+
+    component Heading: Label {
+        font.pixelSize: 13
+        font.weight: Font.DemiBold
+        color: Theme.text
+        Layout.topMargin: 2
     }
 
     contentItem: ScrollView {
@@ -107,156 +166,188 @@ Dialog {
 
         ColumnLayout {
             width: parent.width
-            spacing: 14
+            spacing: 8
 
-            // ---- Formats
-            Label { text: "File types"; font.bold: true }
-            CheckBox {
-                id: allBox
-                text: dlg.width < 560 ? "All file types (one ZIP)" : "All file types (bundled in one ZIP, one folder per format)"
-                checked: dlg.selectedNames().length === ctl.formats.filter(f => f.available).length
-                onClicked: dlg.setAll(checked)
-            }
+            // ---- 1. Format
+            Heading { text: qsTr("Format") }
             GridLayout {
-                columns: dlg.width < 440 ? 2 : dlg.width < 560 ? 3 : 4
-                columnSpacing: 8
-                rowSpacing: 0
+                Layout.fillWidth: true
+                columns: dlg.width < 440 ? 2 : 4
+                columnSpacing: 6
+                rowSpacing: 6
                 Repeater {
-                    model: ctl.formats
-                    delegate: CheckBox {
+                    model: dlg.mainFormats
+                    delegate: Choice {
                         required property var modelData
-                        text: modelData.name + (modelData.available ? "" : " (n/a)")
-                        enabled: modelData.available
-                        checked: !!dlg.selected[modelData.name] && modelData.available
-                        onClicked: {
-                            let s = Object.assign({}, dlg.selected)
-                            s[modelData.name] = checked
-                            dlg.selected = s
-                        }
-                        ToolTip.visible: hovered && !modelData.available
-                        ToolTip.text: "No encoder plugin for this format in this build"
-                    }
-                }
-            }
-
-            // ---- Compression
-            Label { text: "Compression"; font.bold: true }
-            RowLayout {
-                spacing: 4
-                Repeater {
-                    model: [
-                        { key: "low", label: "Low · Lossless" },
-                        { key: "medium", label: "Medium · Average" },
-                        { key: "high", label: "High · Small" },
-                        { key: "custom", label: "Custom" }
-                    ]
-                    delegate: Button {
-                        required property var modelData
+                        Layout.fillWidth: true
                         text: modelData.label
-                        checkable: true
-                        checked: dlg.compression === modelData.key
-                        onClicked: dlg.compression = modelData.key
-                        focusPolicy: Qt.NoFocus
-                        background: Rectangle {
-                            radius: 8
-                            color: parent.checked ? Theme.accent : parent.hovered ? Theme.hover : Theme.surfaceAlt
-                        }
-                        contentItem: Label {
-                            text: parent.text
-                            color: parent.checked ? Theme.accentText : Theme.text
-                            horizontalAlignment: Text.AlignHCenter
-                        }
+                        hint: dlg.available(modelData.name) ? modelData.hint : qsTr("Not available here")
+                        enabled: dlg.available(modelData.name)
+                        current: dlg.format === modelData.name
+                        onClicked: dlg.format = modelData.name
                     }
                 }
             }
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                color: Theme.subText
-                text: ctl.describe(dlg.compression, dpiBox.value, qualitySlider.value, bitBox.checked)
-            }
-            GridLayout {
-                visible: dlg.compression === "custom"
-                columns: 3
-                Label { text: "Resolution (DPI)" }
-                SpinBox { id: dpiBox; from: 72; to: 2400; stepSize: 50; value: 300; editable: true }
-                Item { Layout.fillWidth: true }
-                Label { text: "Quality" }
-                Slider { id: qualitySlider; from: 1; to: 100; stepSize: 1; value: 90; Layout.fillWidth: true }
-                Label { text: qualitySlider.value >= 100 ? "100 (lossless)" : Math.round(qualitySlider.value) }
-                Label { text: "Colour depth" }
-                CheckBox { id: bitBox; text: "16 bits per channel (PNG / TIFF)" }
-                Item {}
+            RowLayout {
+                spacing: 6
+                Label { text: qsTr("Data:"); color: Theme.subText }
+                Repeater {
+                    model: dlg.otherFormats
+                    delegate: Button {
+                        required property string modelData
+                        flat: true
+                        visible: dlg.available(modelData)
+                        text: modelData === "MARKDOWN" ? "Markdown" : modelData
+                        checkable: true
+                        checked: dlg.format === modelData
+                        onClicked: dlg.format = modelData
+                    }
+                }
             }
 
-            // ---- Scope & options
-            Label { text: "What to export"; font.bold: true }
-            ComboBox {
-                id: scopeBox
+            // ---- 2. Quality
+            Heading { text: qsTr("Quality") }
+            GridLayout {
                 Layout.fillWidth: true
-                model: ["Whole board", "Selection only", "Each frame separately (PDF pages / one file per frame)"]
+                columns: dlg.width < 440 ? 1 : 3
+                columnSpacing: 6
+                rowSpacing: 6
+                Choice {
+                    Layout.fillWidth: true
+                    text: qsTr("Best · lossless")
+                    hint: qsTr("Sharpest, largest file")
+                    current: dlg.compression === "low"
+                    onClicked: dlg.compression = "low"
+                }
+                Choice {
+                    Layout.fillWidth: true
+                    text: qsTr("Balanced")
+                    hint: qsTr("Good quality, medium file")
+                    current: dlg.compression === "medium"
+                    onClicked: dlg.compression = "medium"
+                }
+                Choice {
+                    Layout.fillWidth: true
+                    text: qsTr("Smallest")
+                    hint: qsTr("For email and chat")
+                    current: dlg.compression === "high"
+                    onClicked: dlg.compression = "high"
+                }
             }
-            CheckBox { id: transparentBox; text: "Transparent background (PNG, TIFF, WebP, SVG, PDF)" }
-            CheckBox { id: zipBox; text: "Bundle into one ZIP file" }
+
+            // ---- 3. What to export
+            Heading { text: qsTr("What to export") }
+            GridLayout {
+                Layout.fillWidth: true
+                columns: dlg.width < 440 ? 1 : 3
+                columnSpacing: 6
+                rowSpacing: 6
+                Choice {
+                    Layout.fillWidth: true
+                    text: qsTr("Whole board")
+                    current: dlg.scope === 0
+                    onClicked: dlg.scope = 0
+                }
+                Choice {
+                    Layout.fillWidth: true
+                    text: qsTr("Selection")
+                    hint: dlg.canvas.selectionCount > 0 ? qsTr("%1 selected").arg(dlg.canvas.selectionCount) : qsTr("Nothing selected")
+                    enabled: dlg.canvas.selectionCount > 0
+                    current: dlg.scope === 1
+                    onClicked: dlg.scope = 1
+                }
+                Choice {
+                    Layout.fillWidth: true
+                    text: qsTr("Each frame")
+                    hint: qsTr("One page or file per frame")
+                    current: dlg.scope === 2
+                    onClicked: dlg.scope = 2
+                }
+            }
 
             // ---- Private board
             Rectangle {
                 visible: dlg.canvas.boardPrivate
                 Layout.fillWidth: true
-                implicitHeight: privCol.implicitHeight + 20
-                radius: 8
+                implicitHeight: privCol.implicitHeight + 24
+                radius: 12
                 color: Theme.accentSoft
                 ColumnLayout {
                     id: privCol
-                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                     Label {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        font.bold: true
-                        text: "Private board — enter the board password to export"
+                        font.weight: Font.DemiBold
+                        color: Theme.text
+                        text: qsTr("Private board: enter its password to export")
                     }
                     TextField {
                         id: exportPassword
                         Layout.fillWidth: true
                         echoMode: TextInput.Password
-                        placeholderText: "Board password"
+                        placeholderText: qsTr("Board password")
                     }
                     Label {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
                         color: Theme.subText
-                        text: "PDF and BOARD files are encrypted with this password. Images, SVG, CSV, Markdown "
-                              + "and JSON can't carry a password, so they are exported unprotected."
+                        font.pixelSize: 12
+                        text: qsTr("PDF and Miru board files are encrypted with this password. Images, SVG and data files can't carry a password.")
                     }
                 }
             }
 
-            // ---- Destination
-            Label { text: "Save to"; font.bold: true }
-            RowLayout {
+            // ---- More options
+            Button {
+                flat: true
+                text: (dlg.advanced ? "▾ " : "▸ ") + qsTr("More options")
+                onClicked: dlg.advanced = !dlg.advanced
+                Layout.leftMargin: -8
+            }
+            ColumnLayout {
+                visible: dlg.advanced
                 Layout.fillWidth: true
-                TextField {
-                    id: fileName
-                    placeholderText: "File name"
-                    Layout.preferredWidth: 180
-                    Layout.fillWidth: ctl.singleFileExport
+                spacing: 8
+                CheckBox { id: transparentBox; text: qsTr("Transparent background (PNG, TIFF, WebP, SVG, PDF)") }
+                CheckBox { id: zipBox; visible: dlg.format !== "ALL"; text: qsTr("Bundle into one ZIP file") }
+                CheckBox {
+                    id: customBox
+                    text: qsTr("Custom quality (DPI, image quality, colour depth)")
+                    checked: dlg.compression === "custom"
+                    onClicked: dlg.compression = checked ? "custom" : "low"
                 }
-                TextField {
-                    id: folderField
+                GridLayout {
+                    visible: dlg.compression === "custom"
+                    Layout.leftMargin: 28
+                    columns: 3
+                    Label { text: qsTr("Resolution (DPI)"); color: Theme.text }
+                    SpinBox { id: dpiBox; from: 72; to: 2400; stepSize: 50; value: 300; editable: true }
+                    Item { Layout.fillWidth: true }
+                    Label { text: qsTr("Image quality"); color: Theme.text }
+                    Slider { id: qualitySlider; from: 1; to: 100; stepSize: 1; value: 90; Layout.fillWidth: true }
+                    Label { text: qualitySlider.value >= 100 ? qsTr("100 (lossless)") : Math.round(qualitySlider.value); color: Theme.text }
+                    Label { text: qsTr("Colour depth"); color: Theme.text }
+                    CheckBox { id: bitBox; text: qsTr("16 bits per channel (PNG / TIFF)") }
+                    Item {}
+                }
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    color: Theme.subText
+                    font.pixelSize: 12
+                    text: ctl.describe(dlg.compression, dpiBox.value, qualitySlider.value, bitBox.checked)
+                }
+                RowLayout {
                     visible: !ctl.singleFileExport
                     Layout.fillWidth: true
-                    placeholderText: "Documents folder"
+                    TextField {
+                        id: folderField
+                        Layout.fillWidth: true
+                        placeholderText: qsTr("Folder: Documents")
+                    }
+                    Button { text: qsTr("Browse…"); onClicked: folderDialog.open() }
                 }
-                Button { visible: !ctl.singleFileExport; text: "Browse…"; onClicked: folderDialog.open() }
-            }
-            Label {
-                visible: ctl.singleFileExport
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                color: Theme.subText
-                text: (Qt.platform.os === "wasm" ? "Downloads as " : "Saves as ")
-                      + ctl.packageName(dlg.currentOptions())
-                      + " (several files are bundled into one ZIP)."
             }
 
             // ---- Result
@@ -267,32 +358,46 @@ Dialog {
                 Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: ctl.busy ? "Rendering…" : dlg.resultText
+                    text: ctl.busy ? qsTr("Rendering…") : dlg.resultText
                     color: dlg.resultOk ? Theme.success : Theme.danger
                 }
                 Button {
                     visible: !ctl.busy && dlg.resultOk && dlg.resultText.length > 0 && !ctl.singleFileExport
-                    text: "Open folder"
+                    text: qsTr("Open folder")
                     onClicked: Qt.openUrlExternally(dlg.resultFolder)
                 }
             }
         }
     }
 
-    footer: DialogButtonBox {
-        defaultButton: exportGo
-        alignment: Qt.AlignRight
-        Button {
-            text: "Close"
-            DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-        }
-        Button {
-            id: exportGo
-            text: ctl.busy ? "Exporting…" : "Export"
-            enabled: !ctl.busy && dlg.selectedNames().length > 0
-                     && (!dlg.canvas.boardPrivate || exportPassword.text.length > 0)
-            highlighted: true
-            onClicked: dlg.runExport()
+    footer: Item {
+        implicitHeight: footRow.implicitHeight + 24
+        RowLayout {
+            id: footRow
+            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 18; rightMargin: 18 }
+            spacing: 10
+            TextField {
+                id: fileName
+                Layout.fillWidth: true
+                Layout.maximumWidth: 240
+                placeholderText: qsTr("File name")
+                Accessible.name: qsTr("File name")
+            }
+            Label {
+                Layout.fillWidth: true
+                elide: Text.ElideMiddle
+                color: Theme.subText
+                font.pixelSize: 12
+                text: ctl.packageName(dlg.currentOptions())
+            }
+            Button { text: qsTr("Cancel"); onClicked: dlg.close() }
+            Button {
+                text: ctl.busy ? qsTr("Exporting…") : qsTr("Export")
+                highlighted: true
+                enabled: !ctl.busy && dlg.selectedNames().length > 0
+                         && (!dlg.canvas.boardPrivate || exportPassword.text.length > 0)
+                onClicked: dlg.runExport()
+            }
         }
     }
 }

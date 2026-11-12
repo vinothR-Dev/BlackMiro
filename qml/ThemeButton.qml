@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import BlackMiro
+import Miru
 
 // Top-right theme switch: one icon button. Each click moves to the next theme
 // (System -> Light -> Dark) and the icon changes to match.

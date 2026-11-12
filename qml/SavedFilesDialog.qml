@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // "Saved files": images and selections kept on this device for reuse on any board.
 Dialog {

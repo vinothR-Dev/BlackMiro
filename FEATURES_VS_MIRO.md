@@ -1,15 +1,15 @@
-# BlackMiro vs Miro plans — everything free
+# Miru vs Miro plans — everything free
 
 Source: Miro's public pricing page (Free / Starter $8 / Business $20 / Enterprise), read 2026-11-05.
-Rule for BlackMiro: **every feature is free, no plan tiers, no limits.** Sign-in is only needed to
+Rule for Miru: **every feature is free, no plan tiers, no limits.** Sign-in is only needed to
 save and to share.
 
-Legend: ✅ in BlackMiro now (free) · 🛠 planned (will be free) · — not applicable / needs AI or a
+Legend: ✅ in Miru now (free) · 🛠 planned (will be free) · — not applicable / needs AI or a
 company server (not planned)
 
 ## Core
 
-| Miro feature | Miro plan | BlackMiro |
+| Miro feature | Miro plan | Miru |
 |---|---|---|
 | Editable boards | Free: 3, paid: unlimited | ✅ unlimited (every board is a file) |
 | Private boards / private sharing | Starter+ | ✅ password-encrypted private boards |
@@ -23,7 +23,7 @@ company server (not planned)
 
 ## Structured formats
 
-| Miro feature | Miro plan | BlackMiro |
+| Miro feature | Miro plan | Miru |
 |---|---|---|
 | Diagrams, shapes | All (basic) | ✅ basic shapes, connectors (straight/elbow), frames |
 | 4,700+ shapes (UML, BPMN, AWS…), Mermaid | Business+ | 🛠 shape packs + Mermaid import |
@@ -35,7 +35,7 @@ company server (not planned)
 
 ## Collaboration
 
-| Miro feature | Miro plan | BlackMiro |
+| Miro feature | Miro plan | Miru |
 |---|---|---|
 | Members, visitors, guests | Free view-only → paid edit | 🛠 live co-editing via share link (CRDT + small self-hosted relay); sign-in required to share |
 | Visitor editing without sign-in | Starter+ | 🛠 invited people join by link |
@@ -56,15 +56,15 @@ drag & drop multiple images into a row, light/dark/system theme, touch & pinch, 
 |---|---|
 | AI credits, AI workflows/agents, AI diagrams, background removal, MCP | No AI (by request) |
 | Google / Microsoft / SSO / SAML login, 2FA | Email-only local sign-in by request; no account server |
-| Admin analytics, SCIM, audit logs, domain control, data residency, eDiscovery | Enterprise server features — BlackMiro keeps data on your device |
+| Admin analytics, SCIM, audit logs, domain control, data residency, eDiscovery | Enterprise server features — Miru keeps data on your device |
 | 250+ integrations (Jira, Slack…) | Later, case by case |
 
 ## Miro board toolbar — tool by tool (checked in a live Miro board, 2026-11-05)
 
-Each button on Miro's left toolbar was opened and its menu read. ✅ BlackMiro has it ·
+Each button on Miro's left toolbar was opened and its menu read. ✅ Miru has it ·
 ◐ partly · 🛠 to build (free) · — not planned (AI / third-party service / video)
 
-| Miro toolbar button | What's inside (Miro) | BlackMiro |
+| Miro toolbar button | What's inside (Miro) | Miru |
 |---|---|---|
 | Sidekick (✨) | AI assistant | — no AI |
 | Select | Select / move | ✅ select, marquee, hand (H / Space) |
@@ -141,7 +141,7 @@ categories and search; emoji stickers (desktop/Android); icon library (72 hand-d
 6 categories, search); Layers panel (new, rename, reorder, hide, lock, move selection).
 Not yet: technology shape packs (AWS/Azure/UML/BPMN…), uploading your own shape set, GIFs.
 
-Original plan — BlackMiro equivalents to build (free): shape library panel with search, categories and colour
+Original plan — Miru equivalents to build (free): shape library panel with search, categories and colour
 presets (basic, flowchart, callouts, UML, BPMN, ERD, network/cloud-style generic packs, upload SVG);
 pen panel (highlighter, eraser, precision eraser, lasso, presets); frame presets; template gallery
 window with categories and search; emoji/sticker panel; layers panel; icon library (Font Awesome Free
@@ -178,4 +178,4 @@ alongside, `Ctrl+drag` moves without snapping, `Ctrl+Backspace` clears text, `Al
 the selection, arrows pan when nothing is selected.
 
 Not taken from Miro: "Start a Flow" (AI), `D` card, `M` minimap, `Ctrl+K` command palette,
-`Ctrl+F` find — those features don't exist in BlackMiro yet.
+`Ctrl+F` find — those features don't exist in Miru yet.

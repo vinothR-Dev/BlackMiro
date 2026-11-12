@@ -8,7 +8,7 @@
 
 // Built-in vector libraries.
 //  - Shapes: filled outlines drawn in a 100×100 box, stretched to the item's rectangle.
-//  - Icons:  stroked line icons drawn in a 24×24 box (hand-drawn for BlackMiro).
+//  - Icons:  stroked line icons drawn in a 24×24 box (hand-drawn for Miru).
 // Both are stored by id in boards, and render as true vectors on screen, PDF and SVG.
 namespace ShapeLibrary {
 

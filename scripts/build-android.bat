@@ -21,7 +21,7 @@ set BT=
 for /d %%b in ("%ANDROID_SDK_ROOT%\build-tools\*") do set "BT=%%b"
 if "%BT%"=="" (echo Android build-tools not found & exit /b 1)
 set UNSIGNED=build\android\android-build\build\outputs\apk\release\android-build-release-unsigned.apk
-set OUT=build\android\BlackMiro.apk
+set OUT=build\android\Miru.apk
 if not exist "%USERPROFILE%\.android\debug.keystore" (
     "%JAVA_HOME%\bin\keytool" -genkeypair -keystore "%USERPROFILE%\.android\debug.keystore" -storepass android ^
         -alias androiddebugkey -keypass android -keyalg RSA -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || exit /b 1

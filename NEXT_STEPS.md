@@ -1,4 +1,4 @@
-# BlackMiro — status (2026-11-05)
+# Miru — status (2026-11-05)
 
 Builds on Windows, web and Android; 12 tests pass (`scripts\run-tests-windows.bat`).
 Nothing is committed yet (the folder is not a git repository).

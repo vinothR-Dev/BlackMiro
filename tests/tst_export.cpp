@@ -495,7 +495,7 @@ private slots:
 
     void opensBoardsFromBeforeRename()
     {
-        // Boards saved before the app was named BlackMiro used format "infiniteboard".
+        // Boards saved before the app was named Miru used format "infiniteboard".
         const Document d = makeDoc();
         QByteArray data = BoardFile::save(d);
         Document probe;

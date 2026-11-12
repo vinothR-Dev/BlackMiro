@@ -35,9 +35,11 @@ QByteArray save(const Document &doc, bool includeHistory, const QString &passwor
     zip.setCompressionPolicy(QZipWriter::AutoCompress); // deflate is lossless
 
     QJsonObject root;
-    root["format"] = "blackmiro";
+    root["format"] = "blackmiro";   // file format id (kept from v1.0 for compatibility)
     root["version"] = kFormatVersion;
     root["title"] = doc.title;
+    if (!doc.uid.isEmpty())
+        root["uid"] = doc.uid;
     if (!doc.owner.isEmpty())
         root["owner"] = doc.owner;
     if (doc.isPrivate)
@@ -109,9 +111,9 @@ bool load(const QByteArray &data, Document &doc, QString *error, const QString &
         return false;
     }
     const QJsonObject root = jd.object();
-    // "infiniteboard" = boards saved before the app was named BlackMiro.
+    // "infiniteboard" = boards saved before the app was named Miru.
     const QString format = root["format"].toString();
-    if (format != QLatin1String("blackmiro") && format != QLatin1String("infiniteboard")) {
+    if (format != QLatin1String("blackmiro") && format != QLatin1String("miru") && format != QLatin1String("infiniteboard")) {
         if (error) *error = QStringLiteral("Unknown board format.");
         return false;
     }
@@ -122,6 +124,7 @@ bool load(const QByteArray &data, Document &doc, QString *error, const QString &
 
     Document loaded;
     loaded.title = root["title"].toString(loaded.title);
+    loaded.uid = root["uid"].toString();
     loaded.owner = root["owner"].toString();
     loaded.layersFromJson(root["layers"].toArray());
     if (const QJsonArray sv = root["startView"].toArray(); sv.size() == 4)

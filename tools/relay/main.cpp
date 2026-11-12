@@ -1,5 +1,5 @@
-// Standalone BlackMiro relay for live collaboration on a server or always-on PC.
-// Usage: BlackMiroRelay [--port 8765]
+// Standalone Miru relay for live collaboration on a server or always-on PC.
+// Usage: MiruRelay [--port 8765]
 // The relay only forwards end-to-end encrypted frames; it can't read boards.
 #include "RelayServer.h"
 
@@ -10,10 +10,10 @@
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
-    QCoreApplication::setApplicationName(QStringLiteral("BlackMiroRelay"));
+    QCoreApplication::setApplicationName(QStringLiteral("MiruRelay"));
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(QStringLiteral("BlackMiro live-collaboration relay"));
+    parser.setApplicationDescription(QStringLiteral("Miru live-collaboration relay"));
     parser.addHelpOption();
     QCommandLineOption portOpt(QStringLiteral("port"), QStringLiteral("TCP port to listen on."), QStringLiteral("port"),
                                QStringLiteral("8765"));
@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
         out << "Could not listen on port " << port << Qt::endl;
         return 1;
     }
-    out << "BlackMiro relay listening on port " << relay.port() << Qt::endl;
+    out << "Miru relay listening on port " << relay.port() << Qt::endl;
     QObject::connect(&relay, &RelayServer::clientCountChanged, [&out](int n) {
         out << "clients: " << n << Qt::endl;
     });

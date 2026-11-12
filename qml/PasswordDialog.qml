@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // One dialog for every password question:
 //   mode "set"   - choose a password (with confirmation) when making a board private

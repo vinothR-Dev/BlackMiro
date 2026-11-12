@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Shapes
-import BlackMiro
+import Miru
 
 // Options card shown next to the toolbar while a tool family is active:
 // pen family (pen, highlighter, smart drawing, erasers, lasso), sticky notes, frames.

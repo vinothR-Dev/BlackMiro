@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // Share & live collaboration: start a session (host), join one with an invite link,
 // see who's here, copy the link, leave. Also offers "share a copy" as a file.
@@ -9,15 +9,16 @@ Dialog {
     id: dlg
 
     required property CollabController collab
+    required property CloudStore cloud
+    required property BoardCanvas canvas
     property bool joinOnly: false            // opened from "Join live session"
     signal saveCopyRequested()
     signal exportRequested()
 
-    title: dlg.collab.state === "off" ? (dlg.joinOnly ? qsTr("Join a live session") : qsTr("Share board"))
-                                      : qsTr("Live session")
+    title: dlg.joinOnly ? qsTr("Open a link") : qsTr("Share board")
     modal: true
     anchors.centerIn: Overlay.overlay
-    width: Math.min(520, parent ? parent.width - 32 : 520)
+    width: Math.min(560, parent ? parent.width - 32 : 560)
 
     // Share: generate the invite link straight away (starts the session) and
     // copy it, so it is ready to paste. "New link" makes a fresh one.
@@ -71,6 +72,96 @@ Dialog {
     contentItem: ColumnLayout {
         spacing: 14
 
+        // ---------------- Share link (encrypted copy on GitHub)
+        Rectangle {
+            visible: !dlg.joinOnly
+            Layout.fillWidth: true
+            implicitHeight: linkCol.implicitHeight + 28
+            radius: 12
+            color: Theme.surfaceAlt
+            ColumnLayout {
+                id: linkCol
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
+                spacing: 8
+                Label { text: qsTr("Share link"); font.pixelSize: 15; font.weight: Font.DemiBold; color: Theme.text }
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.3
+                    color: Theme.subText
+                    text: qsTr("Anyone with the link can open a copy of this board, in the browser or the app. It is saved encrypted on GitHub; the key is only inside the link.")
+                }
+                // Not connected yet: repository + token
+                GridLayout {
+                    visible: !dlg.cloud.configured
+                    Layout.fillWidth: true
+                    columns: 2
+                    columnSpacing: 8
+                    rowSpacing: 8
+                    TextField {
+                        id: repoField
+                        Layout.fillWidth: true
+                        Layout.columnSpan: 2
+                        text: dlg.cloud.repo
+                        placeholderText: qsTr("GitHub repository, e.g. owner/boards")
+                        Accessible.name: qsTr("GitHub repository")
+                    }
+                    TextField {
+                        id: tokenField
+                        Layout.fillWidth: true
+                        echoMode: TextInput.Password
+                        placeholderText: dlg.cloud.hasToken ? qsTr("Token saved on this device") : qsTr("GitHub token")
+                        Accessible.name: qsTr("GitHub token")
+                    }
+                    Button {
+                        text: qsTr("Connect")
+                        highlighted: true
+                        enabled: repoField.text.trim().length > 0 && (tokenField.text.length > 0 || dlg.cloud.hasToken)
+                        onClicked: { if (dlg.cloud.configure(repoField.text, tokenField.text)) tokenField.text = "" }
+                    }
+                    Label {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 12
+                        color: Theme.mutedText
+                        textFormat: Text.StyledText
+                        linkColor: Theme.accent
+                        text: qsTr("Use a fine-grained token with <b>Contents: read and write</b> for that repository only (<a href=\"https://github.com/settings/personal-access-tokens/new\">create one</a>). Boards go to its <b>miru-boards</b> branch, one folder per person.")
+                        onLinkActivated: (url) => Qt.openUrlExternally(url)
+                    }
+                }
+                // Connected: make / copy the link
+                RowLayout {
+                    visible: dlg.cloud.configured
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Button {
+                        highlighted: dlg.cloud.lastLink.length === 0
+                        enabled: !dlg.cloud.busy
+                        text: dlg.cloud.busy ? qsTr("Saving…") : dlg.cloud.lastLink.length > 0 ? qsTr("Update link") : qsTr("Create share link")
+                        onClicked: dlg.cloud.saveBoard(dlg.canvas)
+                    }
+                    BusyIndicator { visible: dlg.cloud.busy; running: visible; implicitWidth: 28; implicitHeight: 28 }
+                    Label {
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                        color: Theme.mutedText
+                        font.pixelSize: 12
+                        text: qsTr("Saved in %1").arg(dlg.cloud.repo)
+                    }
+                    Button { flat: true; text: qsTr("Change"); onClicked: dlg.cloud.forgetToken() }
+                }
+                RowLayout {
+                    visible: dlg.cloud.lastLink.length > 0
+                    Layout.fillWidth: true
+                    spacing: 8
+                    TextField { Layout.fillWidth: true; readOnly: true; selectByMouse: true; text: dlg.cloud.lastLink }
+                    Button { highlighted: true; text: qsTr("Copy"); onClicked: dlg.cloud.copyLink(dlg.cloud.lastLink) }
+                }
+            }
+        }
+
         // ---------------- Not in a session
         ColumnLayout {
             visible: dlg.collab.state === "off" || dlg.collab.state === "error"
@@ -103,8 +194,8 @@ Dialog {
                         lineHeight: 1.3
                         color: Theme.subText
                         text: dlg.collab.canHost
-                              ? qsTr("Start a session and send the invite link. People on your network open it in BlackMiro (desktop, phone or browser) and edit with you. Everything is end-to-end encrypted with the key inside the link.")
-                              : qsTr("The browser version can join sessions but can't host one. Start the session from BlackMiro on a computer or phone.")
+                              ? qsTr("Start a session and send the invite link. People on your network open it in Miru (desktop, phone or browser) and edit with you. Everything is end-to-end encrypted with the key inside the link.")
+                              : qsTr("The browser version can join sessions but can't host one. Start the session from Miru on a computer or phone.")
                     }
                     Button {
                         Layout.topMargin: 6
@@ -120,14 +211,14 @@ Dialog {
             }
 
             // Join
-            Label { text: qsTr("Have an invite link?"); font.weight: Font.DemiBold; color: Theme.text; Layout.topMargin: dlg.joinOnly ? 0 : 4 }
+            Label { text: qsTr("Have a link?"); font.weight: Font.DemiBold; color: Theme.text; Layout.topMargin: dlg.joinOnly ? 0 : 4 }
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
                 TextField {
                     id: joinField
                     Layout.fillWidth: true
-                    placeholderText: "blackmiro://join?…"
+                    placeholderText: qsTr("Share link or live-session invite")
                     onAccepted: joinBtn.clicked()
                 }
                 Button {
@@ -136,8 +227,14 @@ Dialog {
                     highlighted: dlg.joinOnly
                     enabled: joinField.text.trim().length > 0
                     onClicked: {
+                        if (dlg.cloud.isShareLink(joinField.text)) {
+                            joinError.text = ""
+                            dlg.cloud.openLink(dlg.canvas, joinField.text)
+                            dlg.close()
+                            return
+                        }
                         if (!dlg.collab.isInviteLink(joinField.text)) {
-                            joinError.text = qsTr("That doesn't look like a BlackMiro invite link.")
+                            joinError.text = qsTr("That doesn't look like a Miru link.")
                             return
                         }
                         joinError.text = ""
@@ -227,7 +324,7 @@ Dialog {
                 wrapMode: Text.WordWrap
                 color: Theme.mutedText
                 font.pixelSize: 12
-                text: qsTr("Anyone with this link can edit while your session is open. If others can't connect, allow BlackMiro through your firewall when Windows asks.")
+                text: qsTr("Anyone with this link can edit while your session is open. If others can't connect, allow Miru through your firewall when Windows asks.")
             }
 
             Label { text: qsTr("In this board"); font.weight: Font.DemiBold; color: Theme.text }

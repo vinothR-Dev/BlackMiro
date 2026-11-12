@@ -17,6 +17,7 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QPointer>
+#include <QQuickWindow>
 #include <QRegularExpression>
 #include <QtMath>
 
@@ -31,7 +32,7 @@ constexpr double kMinZoom = 0.02;
 constexpr double kMaxZoom = 40.0;
 constexpr double kHandleRadius = 6.0;
 constexpr int kMaxVersions = 50;
-const char *kClipboardMime = "application/x-blackmiro-items";
+const char *kClipboardMime = "application/x-miru-items";
 
 bool isResizable(const BoardItem &it)
 {
@@ -59,6 +60,9 @@ BoardCanvas::BoardCanvas(QQuickItem *parent)
     connect(this, &BoardCanvas::contentChanged, this, &BoardCanvas::selectionGeometryChanged);
 
     // Touch: press and hold opens the context menu.
+    m_viewAnim.setInterval(8);     // ticks as fast as frames arrive; motion is time-based
+    m_viewAnim.setTimerType(Qt::PreciseTimer);
+    connect(&m_viewAnim, &QTimer::timeout, this, &BoardCanvas::viewAnimTick);
     m_longPress.setSingleShot(true);
     m_longPress.setInterval(550);
     connect(&m_longPress, &QTimer::timeout, this, [this]() {
@@ -121,6 +125,9 @@ void BoardCanvas::paint(QPainter *p)
     Renderer::Options opt;
     if (!m_editingId.isEmpty())
         opt.hideTextIds << m_editingId;
+    ensurePreviews();
+    opt.previews = &m_previews;
+    opt.deviceScale = m_zoom * (window() ? window()->effectiveDevicePixelRatio() : 1.0);
     const bool darkBackground = fillColor().lightness() < 128;
     if (darkBackground)
         opt.frameTitleColor = QColor(170, 176, 188);
@@ -580,7 +587,8 @@ void BoardCanvas::paste()
     endTextEdit();
     const QMimeData *mime = QGuiApplication::clipboard()->mimeData();
     if (mime && !mime->hasFormat(QString::fromLatin1(kClipboardMime)) && mime->hasText()
-        && mime->text().trimmed().startsWith(QLatin1String("blackmiro://item/"))) {
+        && (mime->text().trimmed().startsWith(QLatin1String("miru://item/"))
+            || mime->text().trimmed().startsWith(QLatin1String("blackmiro://item/")))) {
         followLink(mime->text().trimmed());   // "Copy link" pasted back: jump to the object
         return;
     }
@@ -596,11 +604,12 @@ void BoardCanvas::paste()
         QBuffer buf(&png);
         buf.open(QIODevice::WriteOnly);
         img.save(&buf, "PNG"); // clipboard bitmaps have no original file; PNG keeps every pixel
-        addImageData(png);
+        const QPointF at = toScreen(pasteAnchor());
+        addImageData(png, at.x(), at.y());
         return;
     } else if (mime && mime->hasText() && !mime->text().trimmed().isEmpty()) {
         pushUndo();
-        BoardItem it = makeItem(BoardItem::Type::Sticky, toWorld(boundingRect().center()));
+        BoardItem it = makeItem(BoardItem::Type::Sticky, pasteAnchor());
         it.text = mime->text().trimmed();
         setSelection({ addItem(it) });
         markChanged();
@@ -610,7 +619,22 @@ void BoardCanvas::paste()
         return;
 
     ++m_pasteCount;
-    const QPointF offset(24.0 * m_pasteCount, 24.0 * m_pasteCount);
+    QPointF offset(24.0 * m_pasteCount, 24.0 * m_pasteCount);
+    if (m_pasteAtPointer) {
+        // Paste centred on the mouse pointer (or the view centre when the pointer is
+        // outside the board); pasting again at the same spot steps the copies down.
+        QRectF b;
+        for (const BoardItem &it : std::as_const(source))
+            if (it.type != BoardItem::Type::Connector || (it.fromId.isEmpty() && it.toId.isEmpty())) {
+                const QRectF r = it.type == BoardItem::Type::Connector ? QRectF(it.fromPoint, it.toPoint).normalized() : it.rect;
+                b = b.isNull() ? r : b.united(r);
+            }
+        const QPointF anchor = pasteAnchor();
+        if (QLineF(anchor, m_lastPasteAnchor).length() > 2.0 / m_zoom)
+            m_pasteRepeat = 0;
+        m_lastPasteAnchor = anchor;
+        offset = anchor - b.center() + QPointF(24.0, 24.0) * m_pasteRepeat++;
+    }
     QHash<QString, QString> idMap;
     for (BoardItem &it : source) {
         const QString nid = BoardItem::newId();
@@ -636,7 +660,16 @@ void BoardCanvas::paste()
 void BoardCanvas::duplicateSelection()
 {
     copySelection();
+    m_pasteAtPointer = false;   // duplicates sit just below-right of the originals
     paste();
+    m_pasteAtPointer = true;
+}
+
+QPointF BoardCanvas::pasteAnchor() const
+{
+    if (m_pointerInside && boundingRect().contains(m_hoverScreen))
+        return toWorld(m_hoverScreen);
+    return toWorld(boundingRect().center());
 }
 
 void BoardCanvas::selectAll()
@@ -936,6 +969,8 @@ void BoardCanvas::pointerPress(const QPointF &pos, Qt::MouseButton button, Qt::K
 {
     forceActiveFocus(Qt::MouseFocusReason);
     endTextEdit();
+    stopViewAnimation();
+    m_panSamples.clear();
     m_pressScreen = m_lastScreen = pos;
     m_pressWorld = toWorld(pos);
     m_dragChanged = false;
@@ -1201,12 +1236,15 @@ void BoardCanvas::mouseMoveEvent(QMouseEvent *e)
 
 void BoardCanvas::pointerMove(const QPointF &pos, Qt::KeyboardModifiers mods)
 {
+    m_hoverScreen = pos;
+    m_pointerInside = true;
     const QPointF world = toWorld(pos);
     const QPointF deltaWorld = world - m_pressWorld;
 
     switch (m_drag) {
     case Drag::Pan:
         m_pan += pos - m_lastScreen;
+        trackPanVelocity(pos);
         emit viewChanged();
         update();
         break;
@@ -1411,6 +1449,8 @@ void BoardCanvas::pointerRelease(const QPointF &pos, Qt::KeyboardModifiers mods)
         updateHoverCursor(pos);
         if (m_rightPress && QLineF(pos, m_pressScreen).length() < 5)
             openContextMenuAt(pos);
+        else
+            startGlide();   // keep the board moving and ease it to a stop
         break;
 
     case Drag::Crop:
@@ -1555,6 +1595,7 @@ void BoardCanvas::hoverMoveEvent(QHoverEvent *e)
 {
     updateHoverCursor(e->position());
     m_hoverScreen = e->position();
+    m_pointerInside = true;
     if (m_tool.endsWith(QLatin1String("eraser")))
         update();
     const QPointF w = toWorld(e->position());
@@ -1588,7 +1629,10 @@ void BoardCanvas::wheelEvent(QWheelEvent *e)
         update();
     } else {
         const double steps = (angle.y() != 0 ? angle.y() : pixel.y()) / 120.0;
-        setZoomAt(m_zoom * std::pow(1.15, steps), e->position());
+        if (ctrl && !pixel.isNull())
+            setZoomAt(m_zoom * std::pow(1.15, steps), e->position());     // trackpad pinch: follow the fingers
+        else
+            smoothZoomBy(std::pow(1.2, steps), e->position());            // mouse wheel: eased zoom
     }
     e->accept();
 }
@@ -1693,7 +1737,7 @@ void BoardCanvas::keyPressEvent(QKeyEvent *e)
         if (key == Qt::Key_V) { pasteStyle(); e->accept(); return; }
     }
     const bool alt = e->modifiers() & Qt::AltModifier;
-    if (ctrl && alt && key == Qt::Key_K) { emit linkActivated(QStringLiteral("blackmiro:edit-link")); e->accept(); return; }
+    if (ctrl && alt && key == Qt::Key_K) { emit linkActivated(QStringLiteral("miru:edit-link")); e->accept(); return; }
     if (ctrl && shift) {
         switch (key) {
         case Qt::Key_L: setSelLocked(!selLocked()); break;
@@ -1760,9 +1804,11 @@ void BoardCanvas::keyPressEvent(QKeyEvent *e)
     case Qt::Key_Tab: selectNext(false); break;
     case Qt::Key_Backtab: selectNext(true); break;
     case Qt::Key_PageUp: shift ? bringForward() : bringToFront(); break;
+    case Qt::Key_Backslash: arrangeSelection(shift); break;   // \ row, Shift+\ column
+    case Qt::Key_Bar: arrangeSelection(true); break;          // Shift+\ on US layouts
     case Qt::Key_PageDown: shift ? sendBackward() : sendToBack(); break;
     case Qt::Key_F1: emit shortcutsRequested(); break;
-    case Qt::Key_Slash: emit linkActivated(QStringLiteral("blackmiro:cursor-chat")); break;
+    case Qt::Key_Slash: emit linkActivated(QStringLiteral("miru:cursor-chat")); break;
     case Qt::Key_G: setShowGrid(!m_showGrid); break;
     case Qt::Key_E: setTool(QStringLiteral("eraser")); break;
     case Qt::Key_C: setTool(QStringLiteral("comment")); break;

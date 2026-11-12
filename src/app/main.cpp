@@ -1,10 +1,15 @@
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QFont>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QtQml/qqmlextensionplugin.h>
 #include <QQuickWindow>
+#include <QSettings>
+#include <QStandardPaths>
 #include <QStyleHints>
 #include <QTimer>
 #include <QUrl>
@@ -12,18 +17,36 @@
 #include "LibraryPreviewProvider.h"
 #include "TemplatePreviewProvider.h"
 
-Q_IMPORT_QML_PLUGIN(BlackMiroStylePlugin)
+Q_IMPORT_QML_PLUGIN(MiruStylePlugin)
 
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
-    QGuiApplication::setApplicationName(QStringLiteral("BlackMiro"));
-    QGuiApplication::setOrganizationName(QStringLiteral("BlackMiro"));
+    QGuiApplication::setApplicationName(QStringLiteral("Miru"));
+    QGuiApplication::setOrganizationName(QStringLiteral("Miru"));
     // Isolated settings (profile, theme) for automated screenshot runs.
-    if (qEnvironmentVariableIsSet("BLACKMIRO_SETTINGS_ORG"))
-        QGuiApplication::setOrganizationName(qEnvironmentVariable("BLACKMIRO_SETTINGS_ORG"));
+    if (qEnvironmentVariableIsSet("MIRU_SETTINGS_ORG")) {
+        QGuiApplication::setOrganizationName(qEnvironmentVariable("MIRU_SETTINGS_ORG"));
+    } else {
+        // The app was called BlackMiro in v1.0: carry its settings (profile, theme,
+        // recent boards) and data folder (templates, saved files) over once.
+        QSettings now;
+        if (now.allKeys().isEmpty()) {
+            QSettings old(QStringLiteral("BlackMiro"), QStringLiteral("BlackMiro"));
+            for (const QString &k : old.allKeys())
+                now.setValue(k, old.value(k));
+        }
+        const QString newData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QString oldData = newData;
+        oldData.replace(QStringLiteral("/Miru/Miru"), QStringLiteral("/BlackMiro/BlackMiro"));
+        if (oldData != newData && QDir(oldData).exists() && !QDir(newData).exists()) {
+            QDir().mkpath(QFileInfo(newData).path());
+            QDir().rename(oldData, newData);
+        }
+    }
     QGuiApplication::setApplicationVersion(QStringLiteral(PROJECT_VERSION));
-    QQuickStyle::setStyle(QStringLiteral("BlackMiroStyle"));
+    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/qt/qml/Miru/assets/miru-icon.svg")));
+    QQuickStyle::setStyle(QStringLiteral("MiruStyle"));
     QFont uiFont = QGuiApplication::font();
     uiFont.setPixelSize(14);
     QGuiApplication::setFont(uiFont);
@@ -35,13 +58,13 @@ int main(int argc, char *argv[])
     engine.addImageProvider(QStringLiteral("icons"), new LibraryPreviewProvider(true));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,
                      []() { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
-    engine.loadFromModule("BlackMiro", "Main");
+    engine.loadFromModule("Miru", "Main");
 
     if (engine.rootObjects().isEmpty())
         return -1;
     QObject *root = engine.rootObjects().first();
 
-    // Usage: BlackMiro [file.board | image files...] [--screenshot out.png]
+    // Usage: Miru [file.board | image files...] [--screenshot out.png]
     QStringList args = QCoreApplication::arguments().mid(1);
     QString screenshot;
     const qsizetype shotIdx = args.indexOf(QStringLiteral("--screenshot"));

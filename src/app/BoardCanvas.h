@@ -220,6 +220,8 @@ public:
     Q_INVOKABLE void duplicateSelection();
     Q_INVOKABLE void copySelection();
     Q_INVOKABLE void paste();
+    // Line the selected objects up evenly: a row (\) or a column (Shift+\).
+    Q_INVOKABLE void arrangeSelection(bool vertical);
     Q_INVOKABLE void selectAll();
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void bringToFront();
@@ -234,6 +236,8 @@ public:
     Q_INVOKABLE bool saveFile(const QUrl &url = QUrl(), const QString &password = QString());
     Q_INVOKABLE bool openData(const QByteArray &data, const QString &name, const QString &password = QString());
     Q_INVOKABLE QByteArray saveData(const QString &password = QString());
+    // Stable id of this board (created on first use; saved in the file).
+    Q_INVOKABLE QString boardUid() { if (m_doc.uid.isEmpty()) m_doc.uid = BoardItem::newId(); return m_doc.uid; }
 
     // Private boards
     Q_INVOKABLE bool makePrivate(const QString &password);
@@ -383,6 +387,14 @@ protected:
     void mouseReleaseEvent(QMouseEvent *e) override;
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void hoverMoveEvent(QHoverEvent *e) override;
+    void hoverEnterEvent(QHoverEvent *e) override { m_pointerInside = true; m_hoverScreen = e->position(); }
+    void hoverLeaveEvent(QHoverEvent *) override { m_pointerInside = false; }
+    // Where Paste puts things: the mouse pointer, else the middle of the view.
+    QPointF pasteAnchor() const;
+    bool m_pointerInside = false;
+    bool m_pasteAtPointer = true;
+    QPointF m_lastPasteAnchor;
+    int m_pasteRepeat = 0;
     void wheelEvent(QWheelEvent *e) override;
     void touchEvent(QTouchEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
@@ -506,6 +518,25 @@ private:
     // Context menu (right click without drag / long press)
     bool m_rightPress = false;
     QTimer m_longPress;
+
+    // Screen-sized image previews, decoded off the UI thread (see ensurePreviews).
+    QHash<QString, QImage> m_previews;
+    QSet<QString> m_previewPending;
+    void ensurePreviews();
+
+    // Smooth view motion: eased wheel zoom and a gliding pan after the hand drag.
+    QTimer m_viewAnim;
+    double m_zoomGoal = 0;            // 0 = no zoom animation
+    QPointF m_zoomAnchor;
+    QPointF m_glide;                  // pan velocity, px per ms
+    QElapsedTimer m_animClock;
+    QElapsedTimer m_panClock;
+    QList<QPair<qint64, QPointF>> m_panSamples;
+    void smoothZoomBy(double factor, const QPointF &anchor);
+    void trackPanVelocity(const QPointF &pos);
+    void startGlide();
+    void stopViewAnimation();
+    void viewAnimTick();
     QPointF m_longPressPos;
 
     // Copy / paste style

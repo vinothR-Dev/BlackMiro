@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // Keyboard shortcuts (F1). Same keys as Miro where the feature exists.
 Dialog {
@@ -34,7 +34,7 @@ Dialog {
             ["Ctrl+A", qsTr("Select all")], ["Shift+click", qsTr("Add to selection")], ["Esc", qsTr("Deselect")],
             ["Tab / Shift+Tab", qsTr("Next / previous object")], ["Ctrl+G", qsTr("Group")], ["Ctrl+Shift+G", qsTr("Ungroup")],
             ["Ctrl+Shift+L", qsTr("Lock / unlock")], ["Ctrl+Alt+K", qsTr("Link to")], ["PgUp", qsTr("Bring to front")],
-            ["Shift+PgUp", qsTr("Bring forward")], ["PgDn", qsTr("Send to back")], ["Shift+PgDn", qsTr("Send backward")],
+            ["Shift+PgUp", qsTr("Bring forward")], ["PgDn", qsTr("Send to back")], ["Shift+PgDn", qsTr("Send backward")], ["\\", qsTr("Line up in a row")], ["Shift+\\", qsTr("Line up in a column")],
             ["Arrows", qsTr("Move 1 px (Shift: 10 px)")], ["Shift+drag", qsTr("Move along one axis")],
             ["Ctrl+drag", qsTr("Move without snapping")] ] },
         { name: qsTr("View"), keys: [

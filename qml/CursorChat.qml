@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import BlackMiro
+import Miru
 
 // Cursor chat: a short message shown next to your cursor to everyone in the live session.
 Rectangle {

@@ -5,18 +5,23 @@
 #include "BoardFile.h"
 #include "Exporter.h"
 
+#include <QBuffer>
 #include <QClipboard>
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QImageReader>
 #include <QJsonDocument>
 #include <QLocale>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPointer>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QThreadPool>
+#include <QTimer>
 
 #include <algorithm>
 #include <cmath>
@@ -25,6 +30,8 @@ namespace {
 
 constexpr double kGrid = 24.0;           // same spacing as the dot grid
 constexpr double kSnapPx = 6.0;          // snap distance in screen pixels
+constexpr double kMinZoomValue = 0.02;   // same limits as BoardCanvas::setZoomAt
+constexpr double kMaxZoomValue = 40.0;
 constexpr double kPin = 30.0;            // comment pin size in screen pixels
 const QColor kGuide(236, 64, 122);
 
@@ -83,7 +90,7 @@ void BoardCanvas::loadSettings()
     m_showObjectSize = s.value(QStringLiteral("board/showObjectSize"), false).toBool();
     m_suggestSize = s.value(QStringLiteral("board/suggestSize"), true).toBool();
     m_showComments = s.value(QStringLiteral("board/showComments"), true).toBool();
-    m_navMode = s.value(QStringLiteral("board/navMode"), QStringLiteral("auto")).toString();
+    m_navMode = s.value(QStringLiteral("board/navMode"), QStringLiteral("mouse")).toString();   // scroll zooms
     m_showGrid = s.value(QStringLiteral("board/showGrid"), true).toBool();
     m_gridStyle = s.value(QStringLiteral("board/gridStyle"), QStringLiteral("dots")).toString();
 }
@@ -788,7 +795,7 @@ void BoardCanvas::copyLink()
     const auto items = selectedItems();
     if (items.isEmpty())
         return;
-    QGuiApplication::clipboard()->setText(QStringLiteral("blackmiro://item/") + items.first()->id);
+    QGuiApplication::clipboard()->setText(QStringLiteral("miru://item/") + items.first()->id);
     emit message(QStringLiteral("Link to object copied. Paste it on this board to jump to the object."));
 }
 
@@ -797,7 +804,9 @@ void BoardCanvas::followLink(const QString &link)
     QString id;
     if (link.startsWith(QLatin1Char('#')))
         id = link.mid(1);
-    else if (link.startsWith(QLatin1String("blackmiro://item/")))
+    else if (link.startsWith(QLatin1String("miru://item/")))
+        id = link.mid(12);
+    else if (link.startsWith(QLatin1String("blackmiro://item/")))   // links copied in v1.0
         id = link.mid(17);
     if (!id.isEmpty()) {
         if (m_doc.find(id))
@@ -1194,4 +1203,193 @@ void BoardCanvas::quickConnectCreate(const QString &connectorId)
         cc->toPoint = target.center();
     }
     setSelection({ nid });
+}
+
+// ---------------------------------------------------------------------------
+// Arrange: \ lines the selection up in a row, Shift+\ in a column, evenly spaced.
+
+void BoardCanvas::arrangeSelection(bool vertical)
+{
+    QList<BoardItem *> items;
+    for (BoardItem &it : m_doc.items)
+        if (m_selection.contains(it.id) && !it.isConnector() && it.type != BoardItem::Type::Comment && !it.locked)
+            items << &it;
+    if (items.size() < 2) {
+        emit message(QStringLiteral("Select two or more objects to arrange them."));
+        return;
+    }
+    pushUndo();
+    // Keep the reading order: sort along the arrange axis.
+    std::sort(items.begin(), items.end(), [vertical](const BoardItem *a, const BoardItem *b) {
+        return vertical ? a->rect.center().y() < b->rect.center().y() : a->rect.center().x() < b->rect.center().x();
+    });
+    const double gap = 32;
+    double cross = 0;   // shared centre line on the other axis
+    for (const BoardItem *it : std::as_const(items))
+        cross += vertical ? it->rect.center().x() : it->rect.center().y();
+    cross /= items.size();
+    double pos = vertical ? items.first()->rect.top() : items.first()->rect.left();
+    QSet<QString> moved;
+    for (BoardItem *it : std::as_const(items)) {
+        const QRectF old = it->rect;
+        QRectF r = old;
+        if (vertical)
+            r.moveTo(cross - r.width() / 2, pos);
+        else
+            r.moveTo(pos, cross - r.height() / 2);
+        it->rect = r;
+        pos += (vertical ? r.height() : r.width()) + gap;
+        // Frames carry their contents along.
+        if (it->type == BoardItem::Type::Frame) {
+            const QPointF d = r.topLeft() - old.topLeft();
+            for (BoardItem &c : m_doc.items)
+                if (!m_selection.contains(c.id) && !c.isConnector() && old.contains(c.rect))
+                    c.rect.translate(d);
+        }
+    }
+    markChanged();
+    emit selectionGeometryChanged();
+}
+
+// ---------------------------------------------------------------------------
+// Smooth view motion
+
+void BoardCanvas::smoothZoomBy(double factor, const QPointF &anchor)
+{
+    if (m_zoomGoal <= 0)
+        m_zoomGoal = m_zoom;
+    m_zoomGoal = qBound(kMinZoomValue, m_zoomGoal * factor, kMaxZoomValue);
+    m_zoomAnchor = anchor;
+    m_glide = QPointF();
+    if (!m_viewAnim.isActive()) {
+        m_animClock.restart();
+        m_viewAnim.start();
+    }
+}
+
+void BoardCanvas::trackPanVelocity(const QPointF &pos)
+{
+    if (!m_panClock.isValid())
+        m_panClock.start();
+    const qint64 now = m_panClock.elapsed();
+    m_panSamples.append({ now, pos });
+    while (!m_panSamples.isEmpty() && now - m_panSamples.first().first > 90)
+        m_panSamples.removeFirst();
+}
+
+void BoardCanvas::startGlide()
+{
+    if (m_panSamples.size() < 2 || !m_panClock.isValid())
+        return;
+    const auto &a = m_panSamples.first();
+    const auto &b = m_panSamples.last();
+    const qint64 idle = m_panClock.elapsed() - b.first;
+    const double dt = double(b.first - a.first);
+    m_panSamples.clear();
+    if (dt < 8 || idle > 60)       // the pointer stopped before release: no glide
+        return;
+    m_glide = (b.second - a.second) / dt;
+    if (std::hypot(m_glide.x(), m_glide.y()) < 0.25)
+        return;
+    const double maxSpeed = 6.0;   // px per ms
+    const double speed = std::hypot(m_glide.x(), m_glide.y());
+    if (speed > maxSpeed)
+        m_glide *= maxSpeed / speed;
+    m_zoomGoal = 0;
+    m_animClock.restart();
+    m_viewAnim.start();
+}
+
+void BoardCanvas::stopViewAnimation()
+{
+    m_viewAnim.stop();
+    m_zoomGoal = 0;
+    m_glide = QPointF();
+}
+
+void BoardCanvas::viewAnimTick()
+{
+    const double dt = qBound(1.0, double(m_animClock.restart()), 50.0);
+    bool busy = false;
+    if (m_zoomGoal > 0) {
+        // Ease in log space: each frame closes ~a quarter of the remaining distance
+        // (frame-rate independent), finishing in about 150 ms.
+        const double remaining = std::log(m_zoomGoal / m_zoom);
+        if (std::abs(remaining) < 0.002) {
+            setZoomAt(m_zoomGoal, m_zoomAnchor);
+            m_zoomGoal = 0;
+        } else {
+            const double k = 1.0 - std::pow(0.75, dt / 16.0);
+            setZoomAt(m_zoom * std::exp(remaining * k), m_zoomAnchor);
+            busy = true;
+        }
+    }
+    if (!m_glide.isNull()) {
+        m_pan += m_glide * dt;
+        m_glide *= std::pow(0.93, dt / 16.0);      // friction: eases out over ~0.5 s
+        if (std::hypot(m_glide.x(), m_glide.y()) < 0.02)
+            m_glide = QPointF();
+        else
+            busy = true;
+        emit viewChanged();
+        update();
+    }
+    if (!busy)
+        m_viewAnim.stop();
+}
+
+// ---------------------------------------------------------------------------
+// Image previews: big boards open and pan smoothly because images are decoded
+// in the background at screen size (longest side 2048 px). The renderer falls
+// back to the original only when zoomed in past the preview's detail.
+
+namespace {
+QImage decodePreview(const QByteArray &bytes)
+{
+    QBuffer buf;
+    buf.setData(bytes);
+    buf.open(QIODevice::ReadOnly);
+    QImageReader reader(&buf);
+    reader.setAutoTransform(false);              // same orientation as Document::assetImage
+    const QSize full = reader.size();
+    const int maxSide = 2048;
+    if (full.isValid() && qMax(full.width(), full.height()) > maxSide)
+        reader.setScaledSize(full.scaled(maxSide, maxSide, Qt::KeepAspectRatio));
+    QImage img = reader.read();
+    if (!img.isNull() && img.format() != QImage::Format_ARGB32_Premultiplied)
+        img.convertTo(QImage::Format_ARGB32_Premultiplied);   // fastest format to draw
+    return img;
+}
+} // namespace
+
+void BoardCanvas::ensurePreviews()
+{
+    // Forget previews of images no longer on the board.
+    for (auto it = m_previews.begin(); it != m_previews.end();)
+        it = m_doc.assets.contains(it.key()) ? std::next(it) : m_previews.erase(it);
+
+    for (auto it = m_doc.assets.constBegin(); it != m_doc.assets.constEnd(); ++it) {
+        const QString key = it.key();
+        if (m_previews.contains(key) || m_previewPending.contains(key))
+            continue;
+        m_previewPending.insert(key);
+        const QByteArray bytes = it->data;   // implicitly shared, safe to read on another thread
+        const QPointer<BoardCanvas> self(this);
+        auto deliver = [self, key](const QImage &img) {
+            if (!self)
+                return;
+            self->m_previewPending.remove(key);
+            self->m_previews.insert(key, img);   // a null image (unreadable) is not retried
+            self->update();
+        };
+#if QT_CONFIG(thread) && !defined(Q_OS_WASM)
+        QThreadPool::globalInstance()->start([bytes, deliver]() {
+            const QImage img = decodePreview(bytes);
+            QMetaObject::invokeMethod(qApp, [deliver, img]() { deliver(img); }, Qt::QueuedConnection);
+        });
+#else
+        // Single-threaded (browser): one image per event-loop turn keeps the UI responsive.
+        QTimer::singleShot(0, this, [bytes, deliver]() { deliver(decodePreview(bytes)); });
+#endif
+    }
 }

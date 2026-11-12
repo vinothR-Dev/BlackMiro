@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // Icon library: search + categories. Click an icon, then click on the board.
 Rectangle {

@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Shapes
-import BlackMiro
+import Miru
 
 ToolButton {
     id: root

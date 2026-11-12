@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import BlackMiro
+import Miru
 
 // Layers: new items go onto the active layer; hide or lock a layer to keep it out of the way.
 Rectangle {
