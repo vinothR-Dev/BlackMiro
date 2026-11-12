@@ -20,7 +20,9 @@
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
-#include <QThreadPool>
+#if QT_CONFIG(thread) && !defined(Q_OS_WASM)
+#include <QThreadPool>   // not shipped by the single-threaded WebAssembly Qt
+#endif
 #include <QTimer>
 
 #include <algorithm>
