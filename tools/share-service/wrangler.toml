@@ -1,0 +1,18 @@
+# Miru share service - deploy with:  npx wrangler deploy   (see README.md)
+name = "miru-share"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+BOARDS_REPO = "vinothR-Dev/miru-boards"     # separate public repo, NOT the app repo
+BOARDS_BRANCH = "main"
+ALLOWED_ORIGIN = "https://vinothr-dev.github.io"
+MAX_BYTES = "10485760"                      # 10 MB per board
+
+# 20 uploads per minute per IP address.
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+  [ratelimits.simple]
+  limit = 20
+  period = 60

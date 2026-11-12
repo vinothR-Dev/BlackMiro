@@ -109,6 +109,14 @@ endif()
 
 target_compile_definitions(Miru PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 
+# Share links (src/app/CloudStore.cpp): URL of the deployed share service
+# (tools/share-service). Empty = the "Create share link" button is hidden.
+# CI passes the repository variable MIRU_SHARE_URL through the environment.
+set(MIRU_SHARE_URL "$ENV{MIRU_SHARE_URL}" CACHE STRING "Miru share service URL, e.g. https://miru-share.<account>.workers.dev")
+set(MIRU_WEB_APP_URL "https://vinothr-dev.github.io/BlackMiro/app/" CACHE STRING "Web app address share links open in")
+string(REGEX REPLACE "/+$" "" MIRU_SHARE_URL "${MIRU_SHARE_URL}")
+target_compile_definitions(Miru PRIVATE MIRU_SHARE_URL="${MIRU_SHARE_URL}" MIRU_WEB_APP_URL="${MIRU_WEB_APP_URL}")
+
 set_target_properties(Miru PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON

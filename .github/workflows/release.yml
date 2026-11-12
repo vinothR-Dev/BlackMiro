@@ -36,6 +36,8 @@ jobs:
       MIRU_SIGN_PASSWORD: ${{ secrets.MIRU_SIGN_PASSWORD }}
       MIRU_ANDROID_KEYSTORE_B64: ${{ secrets.MIRU_ANDROID_KEYSTORE_B64 }}
       MIRU_ANDROID_STORE_PASS: ${{ secrets.MIRU_ANDROID_STORE_PASS }}
+      # Share-link service URL (repository variable, not a secret): tools/share-service
+      MIRU_SHARE_URL: ${{ vars.MIRU_SHARE_URL }}
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:

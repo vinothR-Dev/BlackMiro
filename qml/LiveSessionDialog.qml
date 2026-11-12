@@ -11,6 +11,13 @@ Dialog {
     required property CollabController collab
     required property CloudStore cloud
     required property BoardCanvas canvas
+    // This board's share link (made on this device), refreshed on open and after saving.
+    property string shareLink: ""
+    onAboutToShow: shareLink = cloud.linkFor(canvas)
+    Connections {
+        target: dlg.cloud
+        function onLinkReady(link) { dlg.shareLink = link }
+    }
     property bool joinOnly: false            // opened from "Join live session"
     signal saveCopyRequested()
     signal exportRequested()
@@ -89,75 +96,35 @@ Dialog {
                     wrapMode: Text.WordWrap
                     lineHeight: 1.3
                     color: Theme.subText
-                    text: qsTr("Anyone with the link can open a copy of this board, in the browser or the app. It is saved encrypted on GitHub; the key is only inside the link.")
+                    text: qsTr("Anyone with the link can open a copy of this board, in the browser or the app. No account needed. The board is encrypted before it leaves this device; the key is only inside the link.")
                 }
-                // Not connected yet: repository + token
-                GridLayout {
-                    visible: !dlg.cloud.configured
+                Label {
+                    visible: !dlg.cloud.available
                     Layout.fillWidth: true
-                    columns: 2
-                    columnSpacing: 8
-                    rowSpacing: 8
-                    TextField {
-                        id: repoField
-                        Layout.fillWidth: true
-                        Layout.columnSpan: 2
-                        text: dlg.cloud.repo
-                        placeholderText: qsTr("GitHub repository, e.g. owner/boards")
-                        Accessible.name: qsTr("GitHub repository")
-                    }
-                    TextField {
-                        id: tokenField
-                        Layout.fillWidth: true
-                        echoMode: TextInput.Password
-                        placeholderText: dlg.cloud.hasToken ? qsTr("Token saved on this device") : qsTr("GitHub token")
-                        Accessible.name: qsTr("GitHub token")
-                    }
-                    Button {
-                        text: qsTr("Connect")
-                        highlighted: true
-                        enabled: repoField.text.trim().length > 0 && (tokenField.text.length > 0 || dlg.cloud.hasToken)
-                        onClicked: { if (dlg.cloud.configure(repoField.text, tokenField.text)) tokenField.text = "" }
-                    }
-                    Label {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
-                        font.pixelSize: 12
-                        color: Theme.mutedText
-                        textFormat: Text.StyledText
-                        linkColor: Theme.accent
-                        text: qsTr("Use a fine-grained token with <b>Contents: read and write</b> for that repository only (<a href=\"https://github.com/settings/personal-access-tokens/new\">create one</a>). Boards go to its <b>miru-boards</b> branch, one folder per person.")
-                        onLinkActivated: (url) => Qt.openUrlExternally(url)
-                    }
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 12
+                    color: Theme.mutedText
+                    text: qsTr("Share links aren't available in this build. Use Download board below instead.")
                 }
-                // Connected: make / copy the link
                 RowLayout {
-                    visible: dlg.cloud.configured
+                    visible: dlg.cloud.available
                     Layout.fillWidth: true
                     spacing: 8
                     Button {
-                        highlighted: dlg.cloud.lastLink.length === 0
+                        highlighted: dlg.shareLink.length === 0
                         enabled: !dlg.cloud.busy
-                        text: dlg.cloud.busy ? qsTr("Saving…") : dlg.cloud.lastLink.length > 0 ? qsTr("Update link") : qsTr("Create share link")
+                        text: dlg.cloud.busy ? qsTr("Saving…") : dlg.shareLink.length > 0 ? qsTr("Update link") : qsTr("Create share link")
                         onClicked: dlg.cloud.saveBoard(dlg.canvas)
                     }
                     BusyIndicator { visible: dlg.cloud.busy; running: visible; implicitWidth: 28; implicitHeight: 28 }
-                    Label {
-                        Layout.fillWidth: true
-                        elide: Text.ElideRight
-                        color: Theme.mutedText
-                        font.pixelSize: 12
-                        text: qsTr("Saved in %1").arg(dlg.cloud.repo)
-                    }
-                    Button { flat: true; text: qsTr("Change"); onClicked: dlg.cloud.forgetToken() }
+                    Item { Layout.fillWidth: true }
                 }
                 RowLayout {
-                    visible: dlg.cloud.lastLink.length > 0
+                    visible: dlg.shareLink.length > 0
                     Layout.fillWidth: true
                     spacing: 8
-                    TextField { Layout.fillWidth: true; readOnly: true; selectByMouse: true; text: dlg.cloud.lastLink }
-                    Button { highlighted: true; text: qsTr("Copy"); onClicked: dlg.cloud.copyLink(dlg.cloud.lastLink) }
+                    TextField { Layout.fillWidth: true; readOnly: true; selectByMouse: true; text: dlg.shareLink }
+                    Button { highlighted: true; text: qsTr("Copy"); onClicked: dlg.cloud.copyLink(dlg.shareLink) }
                 }
             }
         }
