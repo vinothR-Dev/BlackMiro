@@ -112,7 +112,21 @@ target_compile_definitions(Miru PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 set_target_properties(Miru PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.miru.app"
+    MACOSX_BUNDLE_BUNDLE_NAME "Miru"
+    MACOSX_BUNDLE_COPYRIGHT "Copyright (C) miru.com"
 )
+
+# Publisher shown in Windows file properties, installers and the About box.
+set(MIRU_PUBLISHER "miru.com")
+string(TIMESTAMP MIRU_YEAR "%Y")
+target_compile_definitions(Miru PRIVATE MIRU_PUBLISHER="${MIRU_PUBLISHER}")
+if(WIN32)
+    set(MIRU_ICO "${CMAKE_CURRENT_SOURCE_DIR}/assets/miru.ico")
+    file(TO_CMAKE_PATH "${MIRU_ICO}" MIRU_ICO)
+    configure_file(src/app/miru.rc.in ${CMAKE_CURRENT_BINARY_DIR}/miru.rc @ONLY)
+    target_sources(Miru PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/miru.rc)
+endif()
 
 if(EMSCRIPTEN)
     # Browser open/download dialogs (QWasmLocalFileAccess) live in QtGui's private API.
@@ -129,11 +143,15 @@ if(EMSCRIPTEN)
 endif()
 
 if(ANDROID)
+    math(EXPR MIRU_VERSION_CODE "${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}")
     set_target_properties(Miru PROPERTIES
-        QT_ANDROID_PACKAGE_NAME "org.miru.app"
+        QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
+        QT_ANDROID_PACKAGE_NAME "com.miru.app"
         QT_ANDROID_APP_NAME "Miru"
+        QT_ANDROID_APP_ICON "@drawable/ic_launcher"
         QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
-        QT_ANDROID_VERSION_CODE 1
+        # 1.1.0 -> 10100: grows with every release, as Android requires for updates.
+        QT_ANDROID_VERSION_CODE ${MIRU_VERSION_CODE}
         QT_ANDROID_MIN_SDK_VERSION 28
         QT_ANDROID_TARGET_SDK_VERSION 36
     )

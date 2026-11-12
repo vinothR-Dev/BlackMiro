@@ -13,3 +13,9 @@ dist/
 # OS
 Thumbs.db
 .DS_Store
+
+# Signing keys and certificates (never commit)
+*.keystore
+*.jks
+*.pfx
+*.p12

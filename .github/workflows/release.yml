@@ -27,6 +27,15 @@ env:
 jobs:
   build:
     runs-on: windows-2022
+    # Signing (publisher miru.com). Optional repository secrets; without them the
+    # Windows files are unsigned and the APK uses a throwaway debug key.
+    #   MIRU_SIGN_PFX_B64 + MIRU_SIGN_PASSWORD           Authenticode code-signing certificate
+    #   MIRU_ANDROID_KEYSTORE_B64 + MIRU_ANDROID_STORE_PASS  Android release key (scripts/make-signing-keys.bat)
+    env:
+      MIRU_SIGN_PFX_B64: ${{ secrets.MIRU_SIGN_PFX_B64 }}
+      MIRU_SIGN_PASSWORD: ${{ secrets.MIRU_SIGN_PASSWORD }}
+      MIRU_ANDROID_KEYSTORE_B64: ${{ secrets.MIRU_ANDROID_KEYSTORE_B64 }}
+      MIRU_ANDROID_STORE_PASS: ${{ secrets.MIRU_ANDROID_STORE_PASS }}
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
@@ -99,6 +108,22 @@ jobs:
           if (-not $mgr) { $mgr = Get-ChildItem "$sdk\cmdline-tools" -Recurse -Filter sdkmanager.bat | Select-Object -First 1 }
           "y`n" * 20 | & $mgr.FullName "ndk;$env:NDK_VERSION" "platforms;android-36" "build-tools;36.0.0" | Out-Null
           "ANDROID_NDK_ROOT=$sdk\ndk\$env:NDK_VERSION" >> $env:GITHUB_ENV
+
+      - name: Signing keys
+        shell: pwsh
+        run: |
+          if ($env:MIRU_SIGN_PFX_B64) {
+            $pfx = "$env:RUNNER_TEMP\miru-sign.pfx"
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:MIRU_SIGN_PFX_B64))
+            "MIRU_SIGN_PFX=$pfx" >> $env:GITHUB_ENV
+            "Windows code signing: on"
+          } else { "Windows code signing: off (no MIRU_SIGN_PFX_B64 secret)" }
+          if ($env:MIRU_ANDROID_KEYSTORE_B64) {
+            $ks = "$env:RUNNER_TEMP\miru-release.keystore"
+            [IO.File]::WriteAllBytes($ks, [Convert]::FromBase64String($env:MIRU_ANDROID_KEYSTORE_B64))
+            "MIRU_ANDROID_KEYSTORE=$ks" >> $env:GITHUB_ENV
+            "Android release key: on"
+          } else { "Android release key: off (no MIRU_ANDROID_KEYSTORE_B64 secret)" }
 
       - name: Build Windows
         shell: cmd

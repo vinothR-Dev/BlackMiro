@@ -3,7 +3,7 @@
        wix build -arch x64 -d AppVer=1.0.0 -d SrcDir=<deploy folder> -o <out.msi> Miru.wxs -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Miru"
-           Manufacturer="Miru"
+           Manufacturer="miru.com"
            Version="$(AppVer)"
            UpgradeCode="5E0C9A3B-6F2D-4C8E-A1B7-3D9F0E2C4A61"
            Scope="perMachine"
@@ -11,6 +11,7 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of Miru is already installed." />
     <MediaTemplate EmbedCab="yes" />
     <Property Id="ARPPRODUCTICON" Value="MiruIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://miru.com" />
     <Icon Id="MiruIcon" SourceFile="$(SrcDir)\Miru.exe" />
 
     <StandardDirectory Id="ProgramFiles64Folder">

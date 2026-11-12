@@ -96,6 +96,7 @@ ApplicationWindow {
         canvas.arrangeSelection(false)
     }
     function demoExport() { showHome = false; exportDialog.open() }
+    function openAbout() { aboutDialog.open() }
     function demoShare() { showHome = false; shareDialog.joinOnly = false; shareDialog.open() }
     function demoConnectDots() {
         showHome = false
@@ -493,6 +494,8 @@ ApplicationWindow {
         MenuItem { text: qsTr("Share…"); onTriggered: win.share() }
         MenuItem { text: qsTr("Open share link…"); onTriggered: win.joinSession() }
         MenuItem { text: qsTr("Join live session…"); onTriggered: win.joinSession() }
+        MenuSeparator {}
+        MenuItem { text: qsTr("About Miru"); onTriggered: aboutDialog.open() }
     }
 
     // Top-right: theme + export
@@ -847,6 +850,31 @@ ApplicationWindow {
     }
 
     LinkDialog { id: linkDialog; canvas: canvas }
+
+    Dialog {
+        id: aboutDialog
+        modal: true
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(340, win.width - 32)
+        padding: 24
+        contentItem: ColumnLayout {
+            spacing: 6
+            MiruLogo { Layout.alignment: Qt.AlignHCenter; implicitWidth: 72; implicitHeight: 72 }
+            Label { Layout.alignment: Qt.AlignHCenter; text: "Miru"; font.pixelSize: 22; font.weight: Font.Bold; color: Theme.text }
+            Label { Layout.alignment: Qt.AlignHCenter; text: qsTr("Version %1").arg(Qt.application.version); color: Theme.subText }
+            Label { Layout.alignment: Qt.AlignHCenter; text: qsTr("Free whiteboard for everyone"); color: Theme.subText }
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: 8
+                text: "© " + new Date().getFullYear() + " " + Qt.application.domain
+                color: Theme.mutedText
+                font.pixelSize: 12
+            }
+        }
+        footer: DialogButtonBox {
+            Button { text: qsTr("Close"); highlighted: true; DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
+        }
+    }
     SavedFilesDialog { id: savedDialog; canvas: canvas }
     ShortcutsDialog { id: shortcutsDialog }
     CommentPopup { id: commentPopup; canvas: canvas }

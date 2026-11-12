@@ -121,6 +121,22 @@ One-time setup on GitHub: **Settings → Pages → Build and deployment → Sour
 
 To make the same files on your own PC: run the three build scripts, then `scripts\package-release.bat <version>` (output in `dist\`).
 
+## Signing (publisher: miru.com)
+
+Every build carries the publisher **miru.com**: Windows file details and copyright, the installers' publisher,
+the Android package `com.miru.app`, and the About box. Real signatures need your keys, given to GitHub Actions
+as repository secrets (**Settings → Secrets and variables → Actions**). Without them CI still builds, unsigned.
+
+| Secret | What |
+|---|---|
+| `MIRU_SIGN_PFX_B64` | Windows code-signing certificate (.pfx) as base64, issued to miru.com by a certificate authority |
+| `MIRU_SIGN_PASSWORD` | Its password |
+| `MIRU_ANDROID_KEYSTORE_B64` | Android release key as base64; create it once with `scripts\make-signing-keys.bat` |
+| `MIRU_ANDROID_STORE_PASS` | Its password |
+
+Keep the Android key forever: phones only accept updates signed with the same key. Locally, set
+`MIRU_SIGN_PFX` / `MIRU_SIGN_PASSWORD` and `MIRU_ANDROID_KEYSTORE` / `MIRU_ANDROID_STORE_PASS` before running the build scripts.
+
 ## Layout
 
 ```
@@ -136,3 +152,7 @@ Qt is used under LGPL-3.0 (dynamic linking on desktop/Android). The WebAssembly 
 statically: distribute it under GPL-3.0, or provide relinkable object files per LGPL.
 The app also uses a few Qt private APIs (ZIP reader/writer, browser file access), so it must be
 rebuilt when Qt is upgraded.
+
+## Copyright
+
+© 2026 miru.com. Miru, its logo and the published apps (Windows, Android, web) are by **miru.com**.

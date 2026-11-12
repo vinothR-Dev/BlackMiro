@@ -52,6 +52,7 @@ int main(int argc, char *argv[])
         }
     }
     QGuiApplication::setApplicationVersion(QStringLiteral(PROJECT_VERSION));
+    QGuiApplication::setOrganizationDomain(QStringLiteral("miru.com"));
     QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/qt/qml/Miru/assets/miru-icon.svg")));
     QQuickStyle::setStyle(QStringLiteral("MiruStyle"));
     QFont uiFont = QGuiApplication::font();

@@ -86,9 +86,10 @@
   </ul>
 
   <footer>
-    Version {{VERSION}} · <a href="https://github.com/{{REPO}}">Source code</a> ·
+    © <span id="year">2026</span> miru.com · Version {{VERSION}} · <a href="https://github.com/{{REPO}}">Source code</a> ·
     <a href="https://github.com/{{REPO}}/releases">All releases</a>
   </footer>
+  <script>document.getElementById("year").textContent = new Date().getFullYear();</script>
 </main>
 </body>
 </html>
