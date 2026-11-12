@@ -11,7 +11,6 @@ AppName=Miru
 AppVersion={#AppVer}
 AppVerName=Miru {#AppVer}
 AppPublisher=miru.com
-AppPublisherURL=https://miru.com
 AppCopyright=Copyright (C) miru.com
 VersionInfoCompany=miru.com
 VersionInfoProductName=Miru

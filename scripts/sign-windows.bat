@@ -9,6 +9,6 @@ set "SIGNTOOL="
 for /d %%k in ("%ProgramFiles(x86)%\Windows Kits\10\bin\10.*") do if exist "%%k\x64\signtool.exe" set "SIGNTOOL=%%k\x64\signtool.exe"
 if not defined SIGNTOOL (echo signtool.exe not found - install the Windows SDK & exit /b 1)
 for %%f in (%*) do (
-    "!SIGNTOOL!" sign /f "%MIRU_SIGN_PFX%" /p "%MIRU_SIGN_PASSWORD%" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Miru" /du "https://miru.com" "%%~f" || exit /b 1
+    "!SIGNTOOL!" sign /f "%MIRU_SIGN_PFX%" /p "%MIRU_SIGN_PASSWORD%" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Miru" "%%~f" || exit /b 1
 )
 echo Signed: %*

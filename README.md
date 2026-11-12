@@ -124,12 +124,12 @@ To make the same files on your own PC: run the three build scripts, then `script
 ## Signing (publisher: miru.com)
 
 Every build carries the publisher **miru.com**: Windows file details and copyright, the installers' publisher,
-the Android package `com.miru.app`, and the About box. Real signatures need your keys, given to GitHub Actions
+the Android package `com.miru.app`, and the About box. (The miru.com domain is not registered to the project yet, so nothing links to it.) Real signatures need your keys, given to GitHub Actions
 as repository secrets (**Settings → Secrets and variables → Actions**). Without them CI still builds, unsigned.
 
 | Secret | What |
 |---|---|
-| `MIRU_SIGN_PFX_B64` | Windows code-signing certificate (.pfx) as base64, issued to miru.com by a certificate authority |
+| `MIRU_SIGN_PFX_B64` | Windows code-signing certificate (.pfx) as base64, issued by a certificate authority (needs the miru.com domain or company to be yours) |
 | `MIRU_SIGN_PASSWORD` | Its password |
 | `MIRU_ANDROID_KEYSTORE_B64` | Android release key as base64; create it once with `scripts\make-signing-keys.bat` |
 | `MIRU_ANDROID_STORE_PASS` | Its password |
