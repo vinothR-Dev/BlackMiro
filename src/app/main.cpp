@@ -5,6 +5,7 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QQmlApplicationEngine>
+#include <QQmlError>
 #include <QQuickStyle>
 #include <QtQml/qqmlextensionplugin.h>
 #include <QQuickWindow>
@@ -16,6 +17,12 @@
 
 #include "LibraryPreviewProvider.h"
 #include "TemplatePreviewProvider.h"
+
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 Q_IMPORT_QML_PLUGIN(MiruStylePlugin)
 
@@ -56,12 +63,26 @@ int main(int argc, char *argv[])
     engine.addImageProvider(QStringLiteral("templates"), new TemplatePreviewProvider);
     engine.addImageProvider(QStringLiteral("shapes"), new LibraryPreviewProvider(false));
     engine.addImageProvider(QStringLiteral("icons"), new LibraryPreviewProvider(true));
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,
-                     []() { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
+    QStringList qmlErrors;
+    QObject::connect(&engine, &QQmlEngine::warnings, &app,
+                     [&qmlErrors](const QList<QQmlError> &list) {
+                         for (const QQmlError &e : list)
+                             qmlErrors << e.toString();
+                     });
     engine.loadFromModule("Miru", "Main");
 
-    if (engine.rootObjects().isEmpty())
+    if (engine.rootObjects().isEmpty()) {
+        // Never exit silently: say why the window could not open.
+        const QString msg = QStringLiteral("Miru could not start.\n\n")
+                + qmlErrors.join(QLatin1Char('\n'));
+        qCritical("%s", qPrintable(msg));
+#ifdef Q_OS_WIN
+        if (!qEnvironmentVariableIsSet("MIRU_NO_ERROR_DIALOG"))
+            MessageBoxW(nullptr, reinterpret_cast<LPCWSTR>(msg.utf16()), L"Miru",
+                        MB_OK | MB_ICONERROR);
+#endif
         return -1;
+    }
     QObject *root = engine.rootObjects().first();
 
     // Usage: Miru [file.board | image files...] [--screenshot out.png]

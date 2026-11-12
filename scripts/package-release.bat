@@ -36,6 +36,8 @@ for /d %%d in ("%ProgramFiles%\Microsoft Visual Studio\*") do for /d %%e in ("%%
 if "%CRT%"=="" (echo Visual C++ runtime DLLs not found & exit /b 1)
 copy /y "%CRT%\*.dll" "%STAGE%\" >nul || exit /b 1
 del /q "%STAGE%\vc_redist.x64.exe" 2>nul
+rem Installers (.exe setup and .msi) from the same files.
+call "%~dp0build-installers.bat" %VER% "%STAGE%" "%OUT%" || exit /b 1
 if exist "%STAGE%.zip" del /q "%STAGE%.zip"
 tar -a -c -f "%STAGE%.zip" -C "%OUT%" "Miru-%VER%-windows-portable" || exit /b 1
 rmdir /s /q "%STAGE%"

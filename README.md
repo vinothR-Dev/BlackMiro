@@ -11,6 +11,8 @@ No account, no login, no subscription — every feature is available to everyone
 
 | Platform | File | How to use |
 |---|---|---|
+| Windows 10/11 (64-bit) | `Miru-1.1.0-windows-setup.exe` | Installer: run it, then start Miru from the Start menu. |
+| Windows 10/11 (64-bit) | `Miru-1.1.0-windows.msi` | MSI installer, for IT / Group Policy deployment. |
 | Windows 10/11 (64-bit) | `Miru-1.1.0-windows-portable.zip` | Unzip anywhere, double-click `Miru.exe`. Nothing to install. |
 | Android 9+ (64-bit ARM) | `Miru-1.1.0-android-arm64.apk` | Allow "install unknown apps", open the APK. |
 | Web | `Miru-1.1.0-web.zip` | Put the files on any static web server and open `index.html`. |
@@ -64,7 +66,7 @@ PDF and SVG are always vector (text stays text). \*AVIF appears only when an AVI
 
 ## Build
 
-Requires Qt 6.8+ (developed on 6.11.1) and CMake 3.21+.
+Requires Qt 6.8+ (CI builds with 6.8.3 LTS) and CMake 3.21+.
 
 **Windows (MSVC):**
 
@@ -76,11 +78,11 @@ scripts\run-tests-windows.bat
 **Linux / macOS:**
 
 ```bash
-cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.1/<kit> -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/Qt/6.8.3/<kit> -DCMAKE_BUILD_TYPE=Release
 cmake --build build && ./build/tst_export
 ```
 
-**Web (WebAssembly)** — needs the Emscripten SDK matching your Qt (4.0.7 for Qt 6.11):
+**Web (WebAssembly)** — needs the Emscripten SDK matching your Qt (3.1.56 for Qt 6.8):
 
 ```bat
 scripts\build-web.bat
@@ -92,7 +94,7 @@ Then open http://localhost:8080/Miru.html. Host the four files in `build\web`
 Insert image use the browser's own file dialogs, and Export produces a single download
 (a ZIP when several files are produced).
 
-**Android** — needs the Android SDK, NDK r27c and a JDK 17+ (Android Studio's bundled one works):
+**Android** — needs the Android SDK, NDK r26b and a JDK 17+ (Android Studio's bundled one works):
 
 ```bat
 scripts\build-android.bat
@@ -111,8 +113,9 @@ pan, double-tap edits text.
 Every push to `main` runs [.github/workflows/release.yml](.github/workflows/release.yml) on GitHub Actions:
 
 1. Builds Windows, web and Android, and runs the tests.
-2. Puts the Windows portable zip, the Android APK and the web zip on the **Releases** page, under the tag `v<version>`. The version comes from `project(Miru VERSION …)` in `CMakeLists.txt`. Pushing again with the same version replaces that release's files; raise the version to make a new release.
-3. Publishes **GitHub Pages**: a download page ([site/index.html](site/index.html)) at the root and the web app at `/app/`.
+2. Launches the portable zip, the MSI and the setup .exe (installed silently) and the web app in a headless browser; the release is only published if each one opens its window.
+3. Puts the Windows setup .exe, MSI and portable zip, the Android APK and the web zip on the **Releases** page, under the tag `v<version>`. The version comes from `project(Miru VERSION …)` in `CMakeLists.txt`. Pushing again with the same version replaces that release's files; raise the version to make a new release.
+4. Publishes **GitHub Pages**: a download page ([site/index.html](site/index.html)) at the root and the web app at `/app/`.
 
 One-time setup on GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 

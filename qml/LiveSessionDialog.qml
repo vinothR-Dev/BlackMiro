@@ -355,14 +355,13 @@ Dialog {
     }
 
     footer: DialogButtonBox {
-        defaultButton: closeBtn
         Button {
             visible: dlg.live || dlg.busy
             text: dlg.collab.isHost ? qsTr("End session") : qsTr("Leave")
             onClicked: dlg.collab.leave()
         }
         Button {
-            id: closeBtn
+            id: closeBtn; highlighted: true
             text: qsTr("Close")
             DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
         }

@@ -7,7 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 QuickTemplates2 Svg Network WebSockets)
 # QZipReader/QZipWriter live in QtCore's private API (stable for many years).
-find_package(Qt6 REQUIRED COMPONENTS CorePrivate)
+# Qt 6.9+ ships private modules as separate packages; on 6.8 the
+# Qt6::CorePrivate target comes with Core.
+if(Qt6_VERSION VERSION_GREATER_EQUAL 6.9)
+    find_package(Qt6 REQUIRED COMPONENTS CorePrivate)
+endif()
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -112,7 +116,9 @@ set_target_properties(Miru PROPERTIES
 
 if(EMSCRIPTEN)
     # Browser open/download dialogs (QWasmLocalFileAccess) live in QtGui's private API.
-    find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
+    if(Qt6_VERSION VERSION_GREATER_EQUAL 6.9)
+        find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
+    endif()
     target_link_libraries(Miru PRIVATE Qt6::GuiPrivate)
     # Miru's own start page (animated logo instead of Qt's loading screen). Qt still
     # writes its default Miru.html; index.html is the page we publish.

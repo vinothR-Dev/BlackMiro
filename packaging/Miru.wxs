@@ -1,0 +1,32 @@
+<!-- WiX v6 source for the Miru Windows installer (.msi).
+     Built by scripts\build-installers.bat:
+       wix build -arch x64 -d AppVer=1.0.0 -d SrcDir=<deploy folder> -o <out.msi> Miru.wxs -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Miru"
+           Manufacturer="Miru"
+           Version="$(AppVer)"
+           UpgradeCode="5E0C9A3B-6F2D-4C8E-A1B7-3D9F0E2C4A61"
+           Scope="perMachine"
+           Compressed="yes">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Miru is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="ARPPRODUCTICON" Value="MiruIcon" />
+    <Icon Id="MiruIcon" SourceFile="$(SrcDir)\Miru.exe" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Miru">
+        <Component Id="MainExecutable">
+          <File Id="MiruExe" Source="$(SrcDir)\Miru.exe" KeyPath="yes">
+            <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Miru"
+                      WorkingDirectory="INSTALLFOLDER" Icon="MiruIcon" />
+          </File>
+        </Component>
+        <!-- Everything windeployqt put next to the exe (Qt DLLs, plugins, QML modules, VC runtime). -->
+        <Files Include="$(SrcDir)\**">
+          <Exclude Files="$(SrcDir)\Miru.exe" />
+        </Files>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+  </Package>
+</Wix>
