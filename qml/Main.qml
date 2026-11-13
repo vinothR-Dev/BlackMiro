@@ -211,7 +211,15 @@ ApplicationWindow {
         }
     }
 
+    // Boards that have a file save themselves: flush on close and when the app is
+    // sent to the background (Android can stop it there without asking).
+    Connections {
+        target: Qt.application
+        function onStateChanged() { if (Qt.application.state !== Qt.ApplicationActive) canvas.flushAutosave() }
+    }
     onClosing: (close) => {
+        if (canvas.modified && canvas.filePath.length > 0 && canvas.flushAutosave())
+            return
         if (canvas.modified && !closeConfirmed && !isWeb) {
             close.accepted = false
             unsavedDialog.open()
@@ -258,6 +266,13 @@ ApplicationWindow {
         displayName: AppState.signedIn ? AppState.email.split("@")[0] : qsTr("Guest")
         onMessage: (text) => toast.show(text)
         onStateChanged: if (state === "live") win.showHome = false
+        Component.onCompleted: {
+            const invite = startupInvite()    // web: page opened from a live-session invite
+            if (invite.length > 0) {
+                win.showHome = false
+                Qt.callLater(() => collab.join(invite))
+            }
+        }
     }
 
     Connections {

@@ -161,8 +161,8 @@ Dialog {
                         lineHeight: 1.3
                         color: Theme.subText
                         text: dlg.collab.canHost
-                              ? qsTr("Start a session and send the invite link. People on your network open it in Miru (desktop, phone or browser) and edit with you. Everything is end-to-end encrypted with the key inside the link.")
-                              : qsTr("The browser version can join sessions but can't host one. Start the session from Miru on a computer or phone.")
+                              ? qsTr("Start a session and send the invite link. Anyone who opens it — in the browser or in Miru on a computer or phone — edits with you live. Everything is end-to-end encrypted with the key inside the link.")
+                              : qsTr("Live sessions aren't set up in this build. Open an invite link from someone using Miru on a computer or phone to join.")
                     }
                     Button {
                         Layout.topMargin: 6

@@ -19,6 +19,8 @@
 //     X-Miru-Path, X-Miru-Edit      optional; update a board this device created before
 //   -> 200 {"repo","branch","path","edit"}
 //
+//   GET  /v1/relay/r/<room>         WebSocket: live editing room (see Room below)
+//
 // Secrets (wrangler secret put ...): GITHUB_TOKEN, EDIT_SECRET, USER_SECRET
 // Vars (wrangler.toml): BOARDS_REPO, BOARDS_BRANCH, ALLOWED_ORIGIN, MAX_BYTES
 
@@ -81,9 +83,24 @@ async function github(env, method, path, body) {
   });
 }
 
+const ROOM_RE = /^\/v1\/relay\/r\/([A-Za-z0-9_-]{8,64})$/;
+
 async function handle(request, env) {
   const url = new URL(request.url);
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(env, request) });
+
+  // Live sessions: one Durable Object per room relays the (end-to-end encrypted) frames.
+  const room = url.pathname.match(ROOM_RE);
+  if (room) {
+    if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected a WebSocket', { status: 426 });
+    const origin = request.headers.get('Origin');
+    if (origin && origin !== env.ALLOWED_ORIGIN) return new Response('Origin not allowed', { status: 403 });
+    if (env.LIMITER) {
+      const { success } = await env.LIMITER.limit({ key: 'ws:' + (request.headers.get('CF-Connecting-IP') || '') });
+      if (!success) return new Response('Too many connections', { status: 429 });
+    }
+    return env.ROOMS.get(env.ROOMS.idFromName(room[1])).fetch(request);
+  }
   if (url.pathname !== '/v1/boards' || request.method !== 'POST')
     return reply(env, request, 404, { error: 'Not found' });
 
@@ -152,3 +169,79 @@ export default {
     }
   },
 };
+
+// ---------------------------------------------------------------------------
+// Live editing room. Same protocol as the app's built-in relay
+// (src/collab/RelayServer.cpp): every binary frame is 1 type byte + payload that
+// the clients encrypt with the invite secret, so this relay never sees a board.
+//   1 Ops       logged and forwarded
+//   2 Snapshot  replaces the log (full state), not forwarded
+//   3 Presence  forwarded only (cursors, names)
+//   9 WantSnapshot  relay -> client: the log is long, please send a snapshot
+// Newcomers first receive the log (latest snapshot + later ops), then live traffic.
+const OPS = 1, SNAPSHOT = 2, PRESENCE = 3, WANT_SNAPSHOT = 9;
+const MAX_LOG_FRAMES = 400;
+const MAX_LOG_BYTES = 64 * 1024 * 1024;
+const MAX_FRAME_BYTES = 32 * 1024 * 1024;
+const MAX_CLIENTS = 50;
+
+export class Room {
+  constructor(state, env) {
+    this.clients = new Set();
+    this.reset();
+  }
+
+  reset() {
+    this.log = [];
+    this.logBytes = 0;
+    this.snapshotRequested = false;
+  }
+
+  async fetch(request) {
+    if (this.clients.size >= MAX_CLIENTS) return new Response('Room is full', { status: 429 });
+    const [client, server] = Object.values(new WebSocketPair());
+    server.accept();
+    for (const frame of this.log) server.send(frame);   // catch the newcomer up
+    this.clients.add(server);
+    server.addEventListener('message', (ev) => this.onMessage(server, ev.data));
+    const drop = () => {
+      this.clients.delete(server);
+      if (this.clients.size === 0) this.reset();   // nobody left: forget the (encrypted) log
+    };
+    server.addEventListener('close', drop);
+    server.addEventListener('error', drop);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  onMessage(from, data) {
+    if (typeof data === 'string') return;            // binary frames only
+    const frame = new Uint8Array(data);
+    if (frame.length === 0) return;
+    if (frame.length > MAX_FRAME_BYTES) { from.close(1009, 'Frame too large'); return; }
+    const type = frame[0];
+    if (type === SNAPSHOT) {
+      this.log = [data];
+      this.logBytes = frame.length;
+      this.snapshotRequested = false;
+      return;
+    }
+    if (type === OPS) {
+      this.log.push(data);
+      this.logBytes += frame.length;
+      while (this.logBytes > MAX_LOG_BYTES && this.log.length > 1) {
+        this.logBytes -= this.log[1].byteLength;
+        this.log.splice(1, 1);                        // keep the base snapshot
+      }
+      if (this.log.length > MAX_LOG_FRAMES && !this.snapshotRequested) {
+        this.snapshotRequested = true;
+        from.send(new Uint8Array([WANT_SNAPSHOT]));
+      }
+    } else if (type !== PRESENCE) {
+      return;
+    }
+    for (const peer of this.clients) {
+      if (peer === from) continue;
+      try { peer.send(data); } catch { this.clients.delete(peer); }
+    }
+  }
+}

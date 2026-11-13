@@ -13,7 +13,8 @@
 class QWebSocket;
 class RelayServer;
 
-// Live collaboration: hosts an in-app relay (desktop / Android) or joins one, keeps the
+// Live collaboration: hosts a session on the public relay (wss://, Miru share service)
+// or, without one, on an in-app relay on the local network; or joins one, keeps the
 // board in sync through SyncEngine, and shares cursors. Everything on the wire is
 // end-to-end encrypted with the secret in the invite link.
 class CollabController : public QObject
@@ -39,7 +40,7 @@ public:
     void setCanvas(BoardCanvas *c);
     QString state() const { return m_state; }
     QString statusText() const { return m_status; }
-    bool isHost() const { return m_relay != nullptr; }
+    bool isHost() const { return m_hosting; }
     bool canHost() const;
     QString inviteLink() const { return m_invite; }
     QVariantList peers() const;
@@ -50,6 +51,8 @@ public:
     Q_INVOKABLE void leave();
     Q_INVOKABLE void copyInvite();
     Q_INVOKABLE bool isInviteLink(const QString &text) const;
+    // Web: live-session invite carried by the page address (#ws=…&room=…&key=…), or "".
+    Q_INVOKABLE QString startupInvite() const;
 
 signals:
     void canvasChanged();
@@ -70,7 +73,8 @@ private:
 
     QPointer<BoardCanvas> m_canvas;
     QWebSocket *m_socket = nullptr;
-    RelayServer *m_relay = nullptr;
+    RelayServer *m_relay = nullptr;   // built-in LAN relay (no public relay configured)
+    bool m_hosting = false;
     SyncEngine m_sync;
     QByteArray m_key;                 // 64 bytes derived from the invite secret
     QString m_state = QStringLiteral("off");

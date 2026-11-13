@@ -10,6 +10,7 @@
 #include <QCursor>
 #include <QFile>
 #include <QFileInfo>
+#include <QSaveFile>
 #include <QGuiApplication>
 #include <QImageReader>
 #include <QJsonDocument>
@@ -53,6 +54,12 @@ BoardCanvas::BoardCanvas(QQuickItem *parent)
     setAntialiasing(true);
     setOpaquePainting(true);
     setFillColor(QColor(245, 246, 248));
+
+    m_autosave.setSingleShot(true);
+    m_autosave.setInterval(1500);
+    connect(&m_autosave, &QTimer::timeout, this, &BoardCanvas::autosaveNow);
+    connect(this, &BoardCanvas::contentChanged, this, &BoardCanvas::scheduleAutosave);
+    connect(this, &BoardCanvas::fileChanged, this, &BoardCanvas::scheduleAutosave);
 
     // Toolbars floating above the selection follow it around.
     connect(this, &BoardCanvas::viewChanged, this, &BoardCanvas::selectionGeometryChanged);
@@ -1975,10 +1982,14 @@ QByteArray BoardCanvas::saveData(const QString &password)
     }
     if (m_doc.owner.isEmpty())
         m_doc.owner = m_ownerEmail;
-    m_doc.versions.append({ QDateTime::currentDateTime(), m_doc.itemsToJson() });
-    while (m_doc.versions.size() > kMaxVersions)
-        m_doc.versions.removeFirst();
-    emit versionsChanged();
+    const QDateTime now = QDateTime::currentDateTime();
+    if (!m_autosaving || !m_lastVersionAt.isValid() || m_lastVersionAt.secsTo(now) >= 600) {
+        m_doc.versions.append({ now, m_doc.itemsToJson() });
+        while (m_doc.versions.size() > kMaxVersions)
+            m_doc.versions.removeFirst();
+        m_lastVersionAt = now;
+        emit versionsChanged();
+    }
     return BoardFile::save(m_doc, true, m_doc.isPrivate ? password : QString());
 }
 
@@ -1988,25 +1999,81 @@ bool BoardCanvas::saveFile(const QUrl &url, const QString &password)
     if (path.isEmpty())
         return false;
     // Android pickers return content:// URIs whose names we must not touch.
-    const bool plainPath = url.isEmpty() || url.isLocalFile();
+    const bool plainPath = url.isEmpty() ? !path.contains(QLatin1String("://")) : url.isLocalFile();
     if (plainPath && !path.endsWith(QLatin1String(".board"), Qt::CaseInsensitive))
         path += QStringLiteral(".board");
+    return writeBoardFile(path, plainPath, password, false);
+}
+
+bool BoardCanvas::writeBoardFile(const QString &path, bool plainPath, const QString &password, bool quiet)
+{
+    m_autosave.stop();
+    // A new board takes its name from the file it is first saved as.
+    if (plainPath && (m_doc.title.isEmpty() || m_doc.title == Document().title))
+        m_doc.title = QFileInfo(path).completeBaseName();
     const QByteArray data = saveData(password);
     if (data.isEmpty())
         return false;
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size()) {
-        emit message(QStringLiteral("Could not save %1: %2").arg(path, f.errorString()));
+    bool ok = false;
+    QString error;
+    if (plainPath) {
+        // Write-then-rename: a crash or full disk never leaves a half-written board.
+        QSaveFile f(path);
+        ok = f.open(QIODevice::WriteOnly) && f.write(data) == data.size() && f.commit();
+        error = f.errorString();
+    } else {
+        QFile f(path);   // content:// (Android): the provider owns the file, write in place
+        ok = f.open(QIODevice::WriteOnly | QIODevice::Truncate) && f.write(data) == data.size();
+        error = f.errorString();
+    }
+    if (!ok) {
+        emit message(QStringLiteral("Could not save %1: %2").arg(plainPath ? QFileInfo(path).fileName() : path, error));
         return false;
     }
-    f.close();
     m_filePath = path;
     m_modified = false;
+    if (m_doc.isPrivate)
+        m_password = password;   // in memory only, so autosave can keep it encrypted
     emit fileChanged();
     emit boardSaved(path, m_doc.title);
-    const QString what = m_doc.isPrivate ? QStringLiteral("Saved (encrypted) ") : QStringLiteral("Saved ");
-    emit message(plainPath ? what + QFileInfo(path).fileName() : what.trimmed());
+    if (quiet) {
+        emit autosaved(path);
+    } else {
+        const QString what = m_doc.isPrivate ? QStringLiteral("Saved (encrypted) ") : QStringLiteral("Saved ");
+        emit message(plainPath ? what + QFileInfo(path).fileName() + QStringLiteral(" — changes now save automatically")
+                               : what.trimmed());
+    }
     return true;
+}
+
+void BoardCanvas::scheduleAutosave()
+{
+    if (m_modified && !m_filePath.isEmpty() && (!m_doc.isPrivate || !m_password.isEmpty()))
+        m_autosave.start();   // restarts: saves once editing pauses
+}
+
+bool BoardCanvas::flushAutosave()
+{
+    if (m_modified && !m_filePath.isEmpty() && (!m_doc.isPrivate || !m_password.isEmpty())) {
+        endTextEdit();
+        m_autosaving = true;
+        writeBoardFile(m_filePath, !m_filePath.contains(QLatin1String("://")), m_password, true);
+        m_autosaving = false;
+    }
+    return !m_modified;
+}
+
+void BoardCanvas::autosaveNow()
+{
+    if (!m_modified || m_filePath.isEmpty() || (m_doc.isPrivate && m_password.isEmpty()))
+        return;
+    if (editing() || m_drag != Drag::None) {   // finish the typing or gesture first
+        m_autosave.start();
+        return;
+    }
+    m_autosaving = true;
+    writeBoardFile(m_filePath, !m_filePath.contains(QLatin1String("://")), m_password, true);
+    m_autosaving = false;
 }
 
 void BoardCanvas::setBoardTitle(const QString &t)

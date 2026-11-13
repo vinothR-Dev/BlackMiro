@@ -16,6 +16,15 @@
 
 #if !defined(Q_OS_WASM)
 #include "RelayServer.h"
+#else
+#include <emscripten/val.h>
+#endif
+
+#ifndef MIRU_SHARE_URL
+#define MIRU_SHARE_URL ""
+#endif
+#ifndef MIRU_WEB_APP_URL
+#define MIRU_WEB_APP_URL "https://vinothr-dev.github.io/BlackMiro/app/"
 #endif
 
 namespace {
@@ -42,6 +51,38 @@ const char *kPeerColors[] = { "#f24726", "#12cdd4", "#8fd14f", "#9510ac", "#fac7
     }
     return fallback.isEmpty() ? QStringLiteral("127.0.0.1") : fallback;
 #endif
+}
+
+// Public relay (wss://) on the Miru share service: works across networks and from the
+// web app. Without it, the host's built-in relay on the local network is used.
+QString cloudRelayUrl()
+{
+    QString base = QStringLiteral(MIRU_SHARE_URL);
+    if (base.isEmpty())
+        return {};
+    if (base.startsWith(QLatin1String("https://")))
+        base.replace(0, 8, QStringLiteral("wss://"));
+    else if (base.startsWith(QLatin1String("http://")))
+        base.replace(0, 7, QStringLiteral("ws://"));
+    return base + QStringLiteral("/v1/relay");
+}
+
+// Invite parameters from miru://join?ws=…&room=…&key=…  or  https://…/app/#ws=…&room=…&key=…
+bool parseInvite(const QString &text, QString *ws, QString *room, QString *key)
+{
+    const QUrl url(text.trimmed());
+    QUrlQuery q;
+    if (url.scheme() == QLatin1String("miru") || url.scheme() == QLatin1String("blackmiro"))
+        q = QUrlQuery(url);
+    else if ((url.scheme() == QLatin1String("https") || url.scheme() == QLatin1String("http")) && url.hasFragment())
+        q = QUrlQuery(url.fragment(QUrl::FullyEncoded));
+    else
+        return false;
+    *ws = q.queryItemValue(QStringLiteral("ws"), QUrl::FullyDecoded);
+    *room = q.queryItemValue(QStringLiteral("room"));
+    *key = q.queryItemValue(QStringLiteral("key"));
+    return (ws->startsWith(QLatin1String("ws://")) || ws->startsWith(QLatin1String("wss://")))
+        && !room->isEmpty() && key->size() >= 16;
 }
 
 QString randomToken(int bytes)
@@ -82,9 +123,20 @@ CollabController::~CollabController()
 bool CollabController::canHost() const
 {
 #if defined(Q_OS_WASM)
-    return false;   // browsers can't listen for connections; join a desktop host instead
+    return !cloudRelayUrl().isEmpty();   // browsers can't listen; they host through the public relay
 #else
     return true;
+#endif
+}
+
+QString CollabController::startupInvite() const
+{
+#ifdef Q_OS_WASM
+    const QString hash = QString::fromStdString(emscripten::val::global("location")["hash"].as<std::string>());
+    const QString link = QStringLiteral("https://x/") + hash;
+    return isInviteLink(link) ? link : QString();
+#else
+    return {};
 #endif
 }
 
@@ -128,59 +180,65 @@ QVariantList CollabController::peers() const
 
 bool CollabController::isInviteLink(const QString &text) const
 {
-    const QString t = text.trimmed();
-    return t.startsWith(QLatin1String("miru://join?")) || t.startsWith(QLatin1String("blackmiro://join?"));
+    QString ws, room, key;
+    return parseInvite(text, &ws, &room, &key);
 }
 
 bool CollabController::startHosting()
 {
-#if defined(Q_OS_WASM)
-    emit message(QStringLiteral("The web version can join a live session but can't host one."));
-    return false;
-#else
     if (!m_canvas || m_state != QLatin1String("off"))
         return false;
-    m_relay = new RelayServer(this);
-    quint16 port = kFirstPort;
-    // MIRU_RELAY_LOCALHOST=1: automated tests, no firewall prompt.
-    const bool localOnly = qEnvironmentVariableIsSet("MIRU_RELAY_LOCALHOST");
-    while (!m_relay->listen(port, localOnly) && port < kFirstPort + 20)
-        ++port;
-    if (!m_relay->port()) {
-        delete m_relay;
-        m_relay = nullptr;
-        setState(QStringLiteral("error"), QStringLiteral("Couldn't open a network port for the session."));
-        return false;
-    }
-    const QString room = randomToken(9);
+    const QString room = randomToken(12);
     const QString secret = randomToken(24);
-    const QString publicUrl = QStringLiteral("ws://%1:%2")
-                                  .arg(localOnly ? QStringLiteral("127.0.0.1") : lanAddress())
-                                  .arg(m_relay->port());
+    QString publicUrl = cloudRelayUrl();
+    QString connectUrl = publicUrl;
+    if (publicUrl.isEmpty()) {
+#if defined(Q_OS_WASM)
+        emit message(QStringLiteral("Live sessions aren't set up in this build of Miru."));
+        return false;
+#else
+        // No public relay in this build: host one in the app, reachable on the local network.
+        m_relay = new RelayServer(this);
+        quint16 port = kFirstPort;
+        // MIRU_RELAY_LOCALHOST=1: automated tests, no firewall prompt.
+        const bool localOnly = qEnvironmentVariableIsSet("MIRU_RELAY_LOCALHOST");
+        while (!m_relay->listen(port, localOnly) && port < kFirstPort + 20)
+            ++port;
+        if (!m_relay->port()) {
+            delete m_relay;
+            m_relay = nullptr;
+            setState(QStringLiteral("error"), QStringLiteral("Couldn't open a network port for the session."));
+            return false;
+        }
+        publicUrl = QStringLiteral("ws://%1:%2")
+                        .arg(localOnly ? QStringLiteral("127.0.0.1") : lanAddress())
+                        .arg(m_relay->port());
+        connectUrl = QStringLiteral("ws://127.0.0.1:%1").arg(m_relay->port());
+#endif
+    }
 
     QUrlQuery q;
     q.addQueryItem(QStringLiteral("ws"), publicUrl);
     q.addQueryItem(QStringLiteral("room"), room);
     q.addQueryItem(QStringLiteral("key"), secret);
-    m_invite = QStringLiteral("miru://join?") + q.toString(QUrl::FullyEncoded);
+    // Public relay: a normal web link, opens the web app anywhere (and pastes into the app).
+    // Local relay: browsers can't reach ws:// on a LAN from an https page, so app-only link.
+    m_invite = m_relay ? QStringLiteral("miru://join?") + q.toString(QUrl::FullyEncoded)
+                       : QStringLiteral(MIRU_WEB_APP_URL) + QLatin1Char('#') + q.toString(QUrl::FullyEncoded);
 
     // The host's board becomes the session's starting state.
+    m_hosting = true;
     m_sync.reset();
-    connectTo(QStringLiteral("ws://127.0.0.1:%1").arg(m_relay->port()), room, secret);
+    connectTo(connectUrl, room, secret);
     return true;
-#endif
 }
 
 bool CollabController::join(const QString &link)
 {
     if (!m_canvas || m_state != QLatin1String("off"))
         return false;
-    const QUrl url(link.trimmed());
-    const QUrlQuery q(url);
-    const QString ws = q.queryItemValue(QStringLiteral("ws"), QUrl::FullyDecoded);
-    const QString room = q.queryItemValue(QStringLiteral("room"));
-    const QString secret = q.queryItemValue(QStringLiteral("key"));
-    if ((url.scheme() != QLatin1String("miru") && url.scheme() != QLatin1String("blackmiro")) || ws.isEmpty() || room.isEmpty() || secret.size() < 16) {
+    QString ws, room, secret;
+    if (!parseInvite(link, &ws, &room, &secret)) {
         emit message(QStringLiteral("That isn't a Miru invite link."));
         return false;
     }
@@ -246,6 +304,7 @@ void CollabController::leave()
         m_relay = nullptr;
     }
 #endif
+    m_hosting = false;
     m_peers.clear();
     m_invite.clear();
     m_key.clear();

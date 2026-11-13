@@ -4,6 +4,7 @@
 #include "UndoStack.h"
 
 #include <QColor>
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QVariantList>
@@ -236,6 +237,9 @@ public:
     Q_INVOKABLE bool saveFile(const QUrl &url = QUrl(), const QString &password = QString());
     Q_INVOKABLE bool openData(const QByteArray &data, const QString &name, const QString &password = QString());
     Q_INVOKABLE QByteArray saveData(const QString &password = QString());
+    // Writes pending changes to the open file now (closing, app sent to background).
+    // True when nothing is left unsaved.
+    Q_INVOKABLE bool flushAutosave();
     // Stable id of this board (created on first use; saved in the file).
     Q_INVOKABLE QString boardUid() { if (m_doc.uid.isEmpty()) m_doc.uid = BoardItem::newId(); return m_doc.uid; }
 
@@ -372,6 +376,7 @@ signals:
     void pointerWorldMoved(double x, double y);   // cursor position in board coordinates
     void remoteCursorsChanged();
     void boardSaved(const QString &path, const QString &title);
+    void autosaved(const QString &path);   // quiet save to the open file after an edit
     void layersChanged();
     void settingsChanged();
     void cursorChatChanged();
@@ -526,6 +531,13 @@ private:
 
     // Smooth view motion: eased wheel zoom and a gliding pan after the hand drag.
     QTimer m_viewAnim;
+    // Autosave: once the board has a file, every edit is written back to it shortly after.
+    QTimer m_autosave;
+    QDateTime m_lastVersionAt;          // autosaves add a version at most every 10 minutes
+    bool m_autosaving = false;
+    void scheduleAutosave();
+    void autosaveNow();
+    bool writeBoardFile(const QString &path, bool plainPath, const QString &password, bool quiet);
     double m_zoomGoal = 0;            // 0 = no zoom animation
     QPointF m_zoomAnchor;
     QPointF m_glide;                  // pan velocity, px per ms
