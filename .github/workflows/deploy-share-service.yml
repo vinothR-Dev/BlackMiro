@@ -1,0 +1,85 @@
+# Deploys the Miru share service (tools/share-service) to Cloudflare Workers:
+# share links + live-session relay. Run it from the Actions tab ("Run workflow").
+# No domain needed: it is served at https://miru-share.<your-subdomain>.workers.dev
+#
+# Repository secrets (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN   Cloudflare token, template "Edit Cloudflare Workers"
+#   CLOUDFLARE_ACCOUNT_ID  Cloudflare account ID (Workers & Pages overview page)
+#   MIRU_BOARDS_TOKEN      GitHub fine-grained token: only repo miru-boards, Contents read/write
+#   MIRU_EDIT_SECRET       long random text
+#   MIRU_USER_SECRET       long random text - never change it (it names everyone's folder)
+# Afterwards set the repository *variable* MIRU_SHARE_URL to the printed address and
+# re-run "Build and release".
+name: Deploy share service
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-share-service
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MIRU_BOARDS_TOKEN: ${{ secrets.MIRU_BOARDS_TOKEN }}
+          MIRU_EDIT_SECRET: ${{ secrets.MIRU_EDIT_SECRET }}
+          MIRU_USER_SECRET: ${{ secrets.MIRU_USER_SECRET }}
+        run: |
+          missing=0
+          for n in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID MIRU_BOARDS_TOKEN MIRU_EDIT_SECRET MIRU_USER_SECRET; do
+            if [ -z "${!n}" ]; then echo "::error::Missing repository secret $n (see the top of this workflow file)"; missing=1; fi
+          done
+          for n in MIRU_EDIT_SECRET MIRU_USER_SECRET; do
+            v="${!n}"
+            if [ -n "$v" ] && [ ${#v} -lt 32 ]; then echo "::error::$n must be at least 32 characters"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Deploy to Cloudflare
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        env:
+          BOARDS_TOKEN: ${{ secrets.MIRU_BOARDS_TOKEN }}
+          EDIT_SECRET: ${{ secrets.MIRU_EDIT_SECRET }}
+          USER_SECRET: ${{ secrets.MIRU_USER_SECRET }}
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: tools/share-service
+          wranglerVersion: "4.161.0"
+          secrets: |
+            BOARDS_TOKEN
+            EDIT_SECRET
+            USER_SECRET
+
+      - name: Check the service answers
+        env:
+          URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::warning::Deployed, but wrangler did not report the address. Find it in Cloudflare: Workers & Pages -> miru-share."
+            exit 0
+          fi
+          URL="${URL%/}"
+          # A plain GET is rejected by design (404); a WebSocket-less room request gives 426.
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/v1/relay/r/healthcheck01")
+          echo "Relay answered HTTP $code (426 expected)"
+          {
+            echo "## Miru share service deployed"
+            echo
+            echo "Address: **$URL**"
+            echo
+            echo "Next: Settings -> Secrets and variables -> Actions -> **Variables** -> set \`MIRU_SHARE_URL\` = \`$URL\`, then re-run **Build and release**."
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$code" = "426" ] || { echo "::error::The relay did not answer as expected (HTTP $code)"; exit 1; }

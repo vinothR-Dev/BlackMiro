@@ -21,7 +21,7 @@
 //
 //   GET  /v1/relay/r/<room>         WebSocket: live editing room (see Room below)
 //
-// Secrets (wrangler secret put ...): GITHUB_TOKEN, EDIT_SECRET, USER_SECRET
+// Secrets (wrangler secret put ...): BOARDS_TOKEN, EDIT_SECRET, USER_SECRET
 // Vars (wrangler.toml): BOARDS_REPO, BOARDS_BRANCH, ALLOWED_ORIGIN, MAX_BYTES
 
 const MAGIC = new TextEncoder().encode('MIRUSHR1');
@@ -73,7 +73,7 @@ async function github(env, method, path, body) {
                (method === 'GET' ? `?ref=${encodeURIComponent(env.BOARDS_BRANCH)}` : ''), {
     method,
     headers: {
-      'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+      'Authorization': `Bearer ${env.BOARDS_TOKEN}`,
       'Accept': 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
       'User-Agent': 'miru-share-service',

@@ -34,36 +34,44 @@ the web app anywhere, or paste into the app's *Have a link?* box.
 The free Workers plan includes Durable Objects (SQLite-backed, set up by
 `wrangler.toml`); `wrangler deploy` creates them, nothing else to configure.
 
-## Set up (once, about 10 minutes)
+## Set up (once, about 10 minutes, no domain and nothing to install)
 
-1. **Boards repository.** On GitHub create a new **public** repository
-   `vinothR-Dev/miru-boards` and tick *Add a README file* (it needs a first commit).
+The service runs at a free `https://miru-share.<your-subdomain>.workers.dev` address and
+is deployed by GitHub Actions (`.github/workflows/deploy-share-service.yml`).
 
-2. **Token.** GitHub → Settings → Developer settings → Fine-grained tokens →
-   *Generate new token*:
-   * Repository access: **Only select repositories → miru-boards**
-   * Permissions: **Contents: Read and write** (nothing else)
+1. **Cloudflare.** Sign up free at https://dash.cloudflare.com/sign-up (skip "add a
+   website"). Open **Workers & Pages**, pick your workers.dev subdomain when asked, and
+   copy the **Account ID** shown on that page. Then profile icon → **My Profile** →
+   **API Tokens** → **Create Token** → template **Edit Cloudflare Workers** → create, copy.
 
-3. **Cloudflare.** Create a free account at https://dash.cloudflare.com, then on any
-   computer with Node.js:
+2. **Boards repository.** On GitHub create a **public** repository `miru-boards` with
+   *Add a README file* ticked. Then GitHub → Settings → Developer settings →
+   **Fine-grained tokens** → *Generate new token*: repository access **Only select
+   repositories → miru-boards**, permission **Contents: Read and write**, nothing else.
 
-   ```sh
-   cd tools/share-service
-   npx wrangler login
-   npx wrangler secret put GITHUB_TOKEN    # paste the token from step 2
-   npx wrangler secret put EDIT_SECRET     # paste a long random string
-   npx wrangler secret put USER_SECRET     # paste another long random string
-   npx wrangler deploy
-   ```
+3. **Secrets.** In this repository → Settings → Secrets and variables → Actions →
+   **New repository secret**:
 
-   For the random strings you can use `openssl rand -base64 48`. Keep `USER_SECRET`
-   the same forever (changing it moves everyone to a new folder).
-   `deploy` prints the service address, e.g. `https://miru-share.<you>.workers.dev`.
+   | Secret | Value |
+   |---|---|
+   | `CLOUDFLARE_API_TOKEN` | token from step 1 |
+   | `CLOUDFLARE_ACCOUNT_ID` | account ID from step 1 |
+   | `MIRU_BOARDS_TOKEN` | token from step 2 |
+   | `MIRU_EDIT_SECRET` | random text, 32+ characters |
+   | `MIRU_USER_SECRET` | other random text, 32+ characters — never change it (it names everyone's folder) |
 
-4. **Tell the build.** In github.com/vinothR-Dev/BlackMiro → Settings → Secrets and
-   variables → Actions → **Variables** → *New repository variable*:
-   `MIRU_SHARE_URL` = the address from step 3. Then push (or re-run the workflow):
-   the next Miru build shows **Create share link** and hosts live sessions on this relay.
+4. **Deploy.** Actions → **Deploy share service** → **Run workflow**. The run summary
+   shows the address.
+
+5. **Connect the app.** Settings → Secrets and variables → Actions → **Variables** →
+   `MIRU_SHARE_URL` = that address. Re-run **Build and release**: share links and live
+   sessions are now on for Windows, Android and the web.
+
+Re-run **Deploy share service** whenever `tools/share-service` changes.
+
+*Without GitHub Actions:* `cd tools/share-service && npx wrangler login`, then
+`npx wrangler secret put BOARDS_TOKEN` / `EDIT_SECRET` / `USER_SECRET`, then
+`npx wrangler deploy`.
 
 Without `MIRU_SHARE_URL` the app still builds; the share box then says links aren't
 available and offers *Download board* instead. Opening existing links always works.
@@ -71,4 +79,4 @@ available and offers *Download board* instead. Opening existing links always wor
 ## Test locally
 
 The Worker has no dependencies. `npx wrangler dev` runs it on http://localhost:8787,
-reading secrets from a `.dev.vars` file (never commit that file).
+reading `BOARDS_TOKEN`, `EDIT_SECRET` and `USER_SECRET` from a `.dev.vars` file (never commit it).
