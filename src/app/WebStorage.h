@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QtGlobal>   // defines Q_OS_WASM; must come before the #ifdef below
+
 // Web version only: board storage in the browser (window.miruWeb in web/index.html).
 // Every board autosaves into IndexedDB; with the File System Access API (Chrome, Edge)
 // a board can also be linked to a real .board file that autosave keeps writing.
