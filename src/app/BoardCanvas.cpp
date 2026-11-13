@@ -2,6 +2,7 @@
 
 #include "BoardFile.h"
 #include "Renderer.h"
+#include "WebStorage.h"
 
 #include <QBuffer>
 #include <QClipboard>
@@ -58,7 +59,7 @@ BoardCanvas::BoardCanvas(QQuickItem *parent)
     m_autosave.setSingleShot(true);
     m_autosave.setInterval(1500);
     connect(&m_autosave, &QTimer::timeout, this, &BoardCanvas::autosaveNow);
-    connect(this, &BoardCanvas::contentChanged, this, &BoardCanvas::scheduleAutosave);
+    connect(this, &BoardCanvas::contentChanged, this, [this]() { ++m_changeSerial; scheduleAutosave(); });
     connect(this, &BoardCanvas::fileChanged, this, &BoardCanvas::scheduleAutosave);
 
     // Toolbars floating above the selection follow it around.
@@ -2035,7 +2036,7 @@ bool BoardCanvas::writeBoardFile(const QString &path, bool plainPath, const QStr
     if (m_doc.isPrivate)
         m_password = password;   // in memory only, so autosave can keep it encrypted
     emit fileChanged();
-    emit boardSaved(path, m_doc.title);
+    noteSavedRecent(path, quiet);
     if (quiet) {
         emit autosaved(path);
     } else {
@@ -2046,14 +2047,35 @@ bool BoardCanvas::writeBoardFile(const QString &path, bool plainPath, const QStr
     return true;
 }
 
+void BoardCanvas::noteSavedRecent(const QString &path, bool quiet)
+{
+    // Keeps "Recent boards" current without re-rendering its thumbnail on every autosave.
+    if (quiet && m_recentClock.isValid() && m_recentClock.elapsed() < 60000)
+        return;
+    m_recentClock.start();
+    emit boardSaved(path, m_doc.title);
+}
+
 void BoardCanvas::scheduleAutosave()
 {
-    if (m_modified && !m_filePath.isEmpty() && (!m_doc.isPrivate || !m_password.isEmpty()))
+#ifdef Q_OS_WASM
+    const bool hasTarget = true;            // web: always into the browser (and a linked file)
+#else
+    const bool hasTarget = !m_filePath.isEmpty();
+#endif
+    if (m_modified && hasTarget && (!m_doc.isPrivate || !m_password.isEmpty()))
         m_autosave.start();   // restarts: saves once editing pauses
 }
 
 bool BoardCanvas::flushAutosave()
 {
+#ifdef Q_OS_WASM
+    if (m_modified && (!m_doc.isPrivate || !m_password.isEmpty())) {
+        endTextEdit();
+        autosaveToBrowser();   // asynchronous: the browser finishes it even while hiding the page
+    }
+    return !m_modified;
+#else
     if (m_modified && !m_filePath.isEmpty() && (!m_doc.isPrivate || !m_password.isEmpty())) {
         endTextEdit();
         m_autosaving = true;
@@ -2061,19 +2083,61 @@ bool BoardCanvas::flushAutosave()
         m_autosaving = false;
     }
     return !m_modified;
+#endif
 }
 
 void BoardCanvas::autosaveNow()
 {
-    if (!m_modified || m_filePath.isEmpty() || (m_doc.isPrivate && m_password.isEmpty()))
+#ifdef Q_OS_WASM
+    const bool hasTarget = true;
+#else
+    const bool hasTarget = !m_filePath.isEmpty();
+#endif
+    if (!m_modified || !hasTarget || (m_doc.isPrivate && m_password.isEmpty()))
         return;
     if (editing() || m_drag != Drag::None) {   // finish the typing or gesture first
         m_autosave.start();
         return;
     }
+#ifdef Q_OS_WASM
+    autosaveToBrowser();
+#else
     m_autosaving = true;
     writeBoardFile(m_filePath, !m_filePath.contains(QLatin1String("://")), m_password, true);
     m_autosaving = false;
+#endif
+}
+
+void BoardCanvas::autosaveToBrowser()
+{
+#ifdef Q_OS_WASM
+    m_autosaving = true;
+    const QByteArray data = saveData(m_password);
+    m_autosaving = false;
+    if (data.isEmpty())
+        return;
+    const int serial = m_changeSerial;
+    const QString uid = boardUid();
+    QPointer<BoardCanvas> self(this);
+    WebStorage::save(uid, m_doc.title, data, [self, serial, uid](const QString &status) {
+        if (!self)
+            return;
+        if (status.isEmpty()) {
+            emit self->message(QStringLiteral("Couldn't keep this board in the browser (storage full or blocked)."));
+            return;
+        }
+        if (status == QLatin1String("permission") && !self->m_permissionHinted) {
+            self->m_permissionHinted = true;
+            emit self->message(QStringLiteral("Changes are kept in this browser. Click Save once to keep writing them to your file."));
+        }
+        if (self->m_changeSerial == serial && self->m_modified) {
+            self->m_modified = false;
+            emit self->fileChanged();
+        }
+        self->noteSavedRecent(QStringLiteral("browser:") + uid, true);
+        emit self->autosaved(QStringLiteral("browser:") + uid);
+    });
+#endif
 }
 
 void BoardCanvas::setBoardTitle(const QString &t)
@@ -2218,9 +2282,24 @@ int BoardCanvas::placeImagesInRow(const QList<QByteArray> &files, const QPointF 
 void BoardCanvas::browserOpenBoard()
 {
 #ifdef Q_OS_WASM
+    QPointer<BoardCanvas> self(this);
+    auto opened = [self](const QByteArray &data, const QString &name, bool linked) {
+        if (!self || !self->openData(data, name))
+            return;
+        self->m_filePath.clear();
+        emit self->fileChanged();
+        if (linked)
+            WebStorage::linkOpened(self->boardUid(), self->m_doc.title);   // autosave writes back to it
+    };
+    if (WebStorage::canPickFile()) {
+        WebStorage::openFile([opened](bool, const QString &name, const QByteArray &data) {
+            if (!data.isEmpty())
+                opened(data, name, true);
+        });
+        return;
+    }
     struct State { QByteArray data; QString name; };
     auto state = std::make_shared<State>();
-    QPointer<BoardCanvas> self(this);
     QWasmLocalFileAccess::openFile(
         "Board files (*.board)",
         [](bool) {},
@@ -2231,12 +2310,7 @@ void BoardCanvas::browserOpenBoard()
             state->data.resize(qsizetype(size));
             return state->data.data();
         },
-        [state, self]() {
-            if (self && self->openData(state->data, state->name)) {
-                self->m_filePath.clear();
-                emit self->fileChanged();
-            }
-        });
+        [state, opened]() { opened(state->data, state->name, false); });
 #else
     emit message(QStringLiteral("Browser file access is only available in the web version."));
 #endif
@@ -2278,7 +2352,7 @@ void BoardCanvas::browserInsertImages()
 #endif
 }
 
-void BoardCanvas::browserSaveBoard(const QString &password)
+void BoardCanvas::browserSaveBoard(const QString &password, bool asNew)
 {
 #ifdef Q_OS_WASM
     QString name = m_doc.title.trimmed();
@@ -2288,10 +2362,76 @@ void BoardCanvas::browserSaveBoard(const QString &password)
     const QByteArray data = saveData(password);
     if (data.isEmpty())
         return;
-    QWasmLocalFileAccess::saveFile(data, (name + QStringLiteral(".board")).toStdString());
-    m_modified = false;
-    emit fileChanged();
+    if (m_doc.isPrivate)
+        m_password = password;   // in memory only, so autosave stays encrypted
+    const int serial = m_changeSerial;
+    const QString uid = boardUid();
+    QPointer<BoardCanvas> self(this);
+    auto markSaved = [self, serial]() {
+        if (self && self->m_changeSerial == serial) {
+            self->m_modified = false;
+            emit self->fileChanged();
+        }
+    };
+    // Chrome / Edge: link the board to a real file; autosave then keeps writing it.
+    WebStorage::saveToFile(uid, m_doc.title, name + QStringLiteral(".board"), data, asNew,
+                           [self, data, name, uid, markSaved](bool supported, const QString &fileName) {
+        if (!self)
+            return;
+        if (supported) {
+            if (fileName.isEmpty())
+                return;   // cancelled
+            markSaved();
+            self->noteSavedRecent(QStringLiteral("browser:") + uid, false);
+            emit self->message(QStringLiteral("Saved %1 — changes now save automatically").arg(fileName));
+            // A new board takes the file's name (autosave then writes it into the file too).
+            if (self->m_doc.title == Document().title)
+                self->setBoardTitle(QFileInfo(fileName).completeBaseName());
+            return;
+        }
+        // Other browsers: download a copy; the live board is kept in this browser.
+        QWasmLocalFileAccess::saveFile(data, (name + QStringLiteral(".board")).toStdString());
+        WebStorage::save(uid, self->m_doc.title, data, [self, markSaved, uid](const QString &status) {
+            if (!self || status.isEmpty())
+                return;
+            markSaved();
+            self->noteSavedRecent(QStringLiteral("browser:") + uid, false);
+            emit self->message(QStringLiteral("Downloaded a copy. Changes are kept in this browser automatically (Recent boards)."));
+        });
+    });
 #else
+    Q_UNUSED(password)
+    Q_UNUSED(asNew)
     emit message(QStringLiteral("Browser file access is only available in the web version."));
+#endif
+}
+
+void BoardCanvas::openBrowserBoard(const QString &uid)
+{
+#ifdef Q_OS_WASM
+    QPointer<BoardCanvas> self(this);
+    WebStorage::load(uid, [self](const QByteArray &data) {
+        if (!self)
+            return;
+        if (data.isEmpty()) {
+            emit self->message(QStringLiteral("This board is no longer stored in this browser."));
+            return;
+        }
+        if (self->openData(data, QStringLiteral("board"))) {
+            self->m_filePath.clear();
+            emit self->fileChanged();
+        }
+    });
+#else
+    Q_UNUSED(uid)
+#endif
+}
+
+void BoardCanvas::removeBrowserBoard(const QString &uid)
+{
+#ifdef Q_OS_WASM
+    WebStorage::remove(uid);
+#else
+    Q_UNUSED(uid)
 #endif
 }

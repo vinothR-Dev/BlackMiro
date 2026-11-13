@@ -162,7 +162,7 @@ ApplicationWindow {
     }
     function doSave(asNew) {
         if (isWeb)
-            canvas.browserSaveBoard(pendingPassword)
+            canvas.browserSaveBoard(pendingPassword, asNew)
         else if (!asNew && canvas.filePath.length > 0) {
             canvas.saveFile("", pendingPassword)
             afterSave()
@@ -277,7 +277,8 @@ ApplicationWindow {
 
     Connections {
         target: canvas
-        function onBoardSaved(path, title) { AppState.addRecent(path, title, canvas.saveThumbnail()) }
+        // Web: no thumbnail (the browser's settings storage is small; boards live in IndexedDB).
+        function onBoardSaved(path, title) { AppState.addRecent(path, title, win.isWeb ? "" : canvas.saveThumbnail()) }
         function onLinkActivated(url) {
             if (url === "miru:edit-link") {
                 if (canvas.selectionCount > 0) linkDialog.open()
@@ -460,7 +461,7 @@ ApplicationWindow {
         MenuItem { text: "New board\tCtrl+N"; onTriggered: canvas.newBoard() }
         MenuItem { text: "Open…\tCtrl+O"; onTriggered: win.openBoard() }
         MenuItem { text: win.isWeb ? "Save (download)\tCtrl+S" : "Save\tCtrl+S"; onTriggered: win.save() }
-        MenuItem { text: win.isWeb ? "Download .board file" : "Save as…\tCtrl+Shift+S"; onTriggered: win.saveAs() }
+        MenuItem { text: win.isWeb ? "Save as…" : "Save as…\tCtrl+Shift+S"; onTriggered: win.saveAs() }
         MenuSeparator {}
         MenuItem { text: "Insert image…\tCtrl+I"; onTriggered: win.insertImages() }
         MenuItem { text: "Export…\tCtrl+E"; onTriggered: exportDialog.open() }
@@ -1161,7 +1162,14 @@ ApplicationWindow {
         z: 90
         canvas: canvas
         onTemplateChosen: (id) => { canvas.newFromTemplate(id); win.showHome = false; canvas.forceActiveFocus() }
-        onRecentChosen: (path) => win.openPath("file:///" + path.replace(/^\/+/, ""))
+        onRecentChosen: (path) => {
+            if (path.startsWith("browser:")) {          // web: board kept in this browser
+                win.showHome = false
+                canvas.openBrowserBoard(path.slice(8))
+            } else {
+                win.openPath("file:///" + path.replace(/^\/+/, ""))
+            }
+        }
         onOpenRequested: { win.showHome = false; win.openBoard() }
         onJoinRequested: win.joinSession()
         onClosed: { win.showHome = false; canvas.forceActiveFocus() }

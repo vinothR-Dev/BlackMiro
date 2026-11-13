@@ -82,6 +82,7 @@ qt_add_qml_module(Miru
         src/app/BoardCanvas.h src/app/BoardCanvas.cpp src/app/BoardCanvasExtras.cpp src/app/BoardCanvasMenus.cpp
         src/app/ExportController.h src/app/ExportController.cpp
         src/app/AppState.h src/app/AppState.cpp
+        src/app/WebStorage.h src/app/WebStorage.cpp
         src/app/CollabController.h src/app/CollabController.cpp
         src/app/CloudStore.h src/app/CloudStore.cpp
         src/app/TemplatePreviewProvider.h

@@ -76,6 +76,97 @@
   </div>
   <div id="screen"></div>
 
+  <script>
+    // Board storage for the web version (called from C++, src/app/WebStorage.cpp).
+    // Every board autosaves into this browser (IndexedDB). On browsers with the File
+    // System Access API (Chrome, Edge) "Save" links the board to a real file, and
+    // autosave keeps writing that file. Results go back through cb(id, value).
+    window.miruWeb = (() => {
+      let dbp = null;
+      const db = () => dbp || (dbp = new Promise((ok, fail) => {
+        const r = indexedDB.open('miru', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('boards', { keyPath: 'uid' });
+        r.onsuccess = () => ok(r.result);
+        r.onerror = () => fail(r.error);
+      }));
+      const tx = async (mode, fn) => {
+        const d = await db();
+        return new Promise((ok, fail) => {
+          const t = d.transaction('boards', mode);
+          const res = fn(t.objectStore('boards'));
+          t.oncomplete = () => ok(res && 'result' in res ? res.result : undefined);
+          t.onerror = () => fail(t.error);
+        });
+      };
+      const get = (uid) => tx('readonly', (s) => s.get(uid));
+      const put = (rec) => tx('readwrite', (s) => s.put(rec));
+      let pendingHandle = null;                 // file just opened, linked once its board id is known
+      const types = [{ description: 'Miru board', accept: { 'application/octet-stream': ['.board'] } }];
+      async function writeHandle(h, bytes, ask) {
+        const opts = { mode: 'readwrite' };
+        let p = await h.queryPermission(opts);
+        if (p !== 'granted' && ask) p = await h.requestPermission(opts);
+        if (p !== 'granted') return false;
+        const w = await h.createWritable();
+        await w.write(bytes);
+        await w.close();
+        return true;
+      }
+      const safe = (cb, id, fn) => fn().then((v) => cb(id, v), (e) => { console.warn('miruWeb', e); cb(id, null); });
+      return {
+        canPickFile: 'showSaveFilePicker' in window,
+        // Autosave: browser copy always; the linked file too if the browser still allows it.
+        // -> 'file' | 'browser' | 'permission' (linked file needs a click on Save)
+        save(id, uid, title, view, cb) {
+          const bytes = view.slice();
+          safe(cb, id, async () => {
+            const old = await get(uid);
+            const rec = { uid, title, data: bytes, time: Date.now(), handle: old ? old.handle : undefined };
+            await put(rec);
+            if (!rec.handle) return 'browser';
+            try { return (await writeHandle(rec.handle, bytes, false)) ? 'file' : 'permission'; }
+            catch (e) { return 'permission'; }
+          });
+        },
+        // Save button (user click): write the linked file (asking permission again after a
+        // reload) or pick a new one. -> file name, '' when cancelled, null when unsupported
+        saveToFile(id, uid, title, suggested, view, asNew, cb) {
+          const bytes = view.slice();
+          safe(cb, id, async () => {
+            if (!('showSaveFilePicker' in window)) return null;
+            const old = await get(uid);
+            let h = !asNew && old ? old.handle : undefined;
+            if (!h) {
+              try { h = await showSaveFilePicker({ suggestedName: suggested, types }); }
+              catch (e) { return ''; }        // cancelled
+            }
+            if (!(await writeHandle(h, bytes, true))) return '';
+            await put({ uid, title, data: bytes, time: Date.now(), handle: h });
+            return h.name;
+          });
+        },
+        // Open button: pick a .board file and remember it, so autosave writes back to it.
+        // -> {name, bytes} | '' (cancelled) | null (unsupported)
+        openFile(id, cb) {
+          safe(cb, id, async () => {
+            if (!('showOpenFilePicker' in window)) return null;
+            let h;
+            try { [h] = await showOpenFilePicker({ types }); } catch (e) { return ''; }
+            pendingHandle = h;
+            const f = await h.getFile();
+            return { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) };
+          });
+        },
+        linkOpened(uid, title) {
+          const h = pendingHandle;
+          pendingHandle = null;
+          if (h) get(uid).then((old) => put({ uid, title, data: old ? old.data : new Uint8Array(), time: Date.now(), handle: h }));
+        },
+        load(id, uid, cb) { safe(cb, id, async () => { const r = await get(uid); return r ? r.data : null; }); },
+        remove(uid) { tx('readwrite', (s) => s.delete(uid)).catch(() => {}); },
+      };
+    })();
+  </script>
   <script src="Miru.js"></script>
   <script src="qtloader.js"></script>
   <script>

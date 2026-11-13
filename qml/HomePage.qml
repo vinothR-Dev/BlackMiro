@@ -123,16 +123,15 @@ Rectangle {
             }
             Label {
                 Layout.topMargin: 10
-                visible: AppState.recentBoards.length === 0 || home.isWeb
+                visible: AppState.recentBoards.length === 0
                 color: Theme.mutedText
-                text: home.isWeb ? qsTr("In the browser, open boards with “Open” in the board menu.")
+                text: home.isWeb ? qsTr("Boards you work on are kept in this browser and appear here.")
                                  : qsTr("Boards you save appear here.")
             }
             Flow {
                 Layout.topMargin: 12
                 Layout.fillWidth: true
                 Layout.bottomMargin: 40
-                visible: !home.isWeb
                 spacing: 16
                 Repeater {
                     model: AppState.recentBoards
@@ -144,7 +143,11 @@ Rectangle {
                         thumb: modelData.thumb
                         removable: true
                         onClicked: home.recentChosen(modelData.path)
-                        onRemoveClicked: AppState.removeRecent(modelData.path)
+                        onRemoveClicked: {
+                            if (modelData.path.startsWith("browser:"))
+                                home.canvas.removeBrowserBoard(modelData.path.slice(8))
+                            AppState.removeRecent(modelData.path)
+                        }
                     }
                 }
             }

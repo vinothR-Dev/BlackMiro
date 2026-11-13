@@ -258,7 +258,10 @@ public:
     // Web build: the browser's own open / download dialogs (no file system access).
     Q_INVOKABLE void browserOpenBoard();
     Q_INVOKABLE void browserInsertImages();
-    Q_INVOKABLE void browserSaveBoard(const QString &password = QString());
+    Q_INVOKABLE void browserSaveBoard(const QString &password = QString(), bool asNew = false);
+    // Web: boards autosave into the browser; Recent boards lists them as "browser:<id>".
+    Q_INVOKABLE void openBrowserBoard(const QString &uid);
+    Q_INVOKABLE void removeBrowserBoard(const QString &uid);
 
     // Right-click menu
     Q_INVOKABLE void copyAsPng();
@@ -535,6 +538,12 @@ private:
     QTimer m_autosave;
     QDateTime m_lastVersionAt;          // autosaves add a version at most every 10 minutes
     bool m_autosaving = false;
+    int m_changeSerial = 0;             // edits since start; an async (web) save only clears
+                                        // "modified" if nothing changed meanwhile
+    QElapsedTimer m_recentClock;        // autosaves refresh "Recent boards" at most once a minute
+    bool m_permissionHinted = false;
+    void noteSavedRecent(const QString &path, bool quiet);
+    void autosaveToBrowser();
     void scheduleAutosave();
     void autosaveNow();
     bool writeBoardFile(const QString &path, bool plainPath, const QString &password, bool quiet);
