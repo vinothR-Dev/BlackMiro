@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QThread>
 #include <QGuiApplication>
 #include <QImageReader>
 #include <QJsonDocument>
@@ -1994,6 +1995,57 @@ QByteArray BoardCanvas::saveData(const QString &password)
     return BoardFile::save(m_doc, true, m_doc.isPrivate ? password : QString());
 }
 
+namespace {
+// Local file: write a temporary file, then swap it in, so a crash or full disk never
+// leaves a half-written board. OneDrive, Dropbox or a virus scanner can hold the file
+// for a moment, so the swap is retried before giving up.
+bool writeLocalFile(const QString &path, const QByteArray &data, QString *error)
+{
+    for (int attempt = 0; attempt < 4; ++attempt) {
+        if (attempt)
+            QThread::msleep(150 * attempt);
+        QSaveFile f(path);
+        f.setDirectWriteFallback(true);   // folders where new files can't be created
+        if (f.open(QIODevice::WriteOnly) && f.write(data) == data.size() && f.commit()) {
+            if (QFileInfo(path).size() == data.size())
+                return true;
+            *error = QStringLiteral("the file was not fully written");
+            continue;
+        }
+        *error = f.errorString();
+    }
+    return false;
+}
+
+// Android content:// document (from the system save / open dialog). The provider owns
+// the file, so it is written in place, then checked by reading its size back.
+bool writeContentUri(const QString &uri, const QByteArray &data, QString *error)
+{
+    QFile f(uri);
+    // "Write + truncate" first; some providers refuse it, then write and cut to size.
+    bool opened = f.open(QIODevice::WriteOnly | QIODevice::Truncate);
+    if (!opened)
+        opened = f.open(QIODevice::WriteOnly);
+    if (!opened) {
+        *error = f.errorString();
+        return false;
+    }
+    bool ok = f.write(data) == data.size() && f.flush();
+    if (ok && f.size() != data.size())
+        ok = f.resize(data.size());          // a longer old version must not leave bytes behind
+    *error = f.errorString();
+    f.close();
+    if (!ok)
+        return false;
+    QFile check(uri);
+    if (check.open(QIODevice::ReadOnly) && check.size() > 0 && check.size() != data.size()) {
+        *error = QStringLiteral("the file has %1 bytes instead of %2").arg(check.size()).arg(data.size());
+        return false;
+    }
+    return true;
+}
+} // namespace
+
 bool BoardCanvas::saveFile(const QUrl &url, const QString &password)
 {
     QString path = url.isEmpty() ? m_filePath : (url.isLocalFile() ? url.toLocalFile() : url.toString());
@@ -2015,22 +2067,21 @@ bool BoardCanvas::writeBoardFile(const QString &path, bool plainPath, const QStr
     const QByteArray data = saveData(password);
     if (data.isEmpty())
         return false;
-    bool ok = false;
     QString error;
-    if (plainPath) {
-        // Write-then-rename: a crash or full disk never leaves a half-written board.
-        QSaveFile f(path);
-        ok = f.open(QIODevice::WriteOnly) && f.write(data) == data.size() && f.commit();
-        error = f.errorString();
-    } else {
-        QFile f(path);   // content:// (Android): the provider owns the file, write in place
-        ok = f.open(QIODevice::WriteOnly | QIODevice::Truncate) && f.write(data) == data.size();
-        error = f.errorString();
-    }
+    const bool ok = plainPath ? writeLocalFile(path, data, &error) : writeContentUri(path, data, &error);
     if (!ok) {
-        emit message(QStringLiteral("Could not save %1: %2").arg(plainPath ? QFileInfo(path).fileName() : path, error));
+        // Autosave retries on the next edit; say so once, not every 1.5 seconds.
+        if (!quiet || !m_autosaveFailed) {
+            const QString name = plainPath ? QFileInfo(path).fileName() : QStringLiteral("the board");
+            emit message(QStringLiteral("Could not save %1: %2.%3").arg(name, error.isEmpty() ? QStringLiteral("unknown error") : error,
+                         quiet ? QStringLiteral(" Miru keeps trying; use Save as to pick another place.") : QString()));
+        }
+        m_autosaveFailed = quiet;
         return false;
     }
+    if (m_autosaveFailed && quiet)
+        emit message(QStringLiteral("Saved again — autosave is working."));
+    m_autosaveFailed = false;
     m_filePath = path;
     m_modified = false;
     if (m_doc.isPrivate)
@@ -2125,6 +2176,13 @@ void BoardCanvas::autosaveToBrowser()
         if (status.isEmpty()) {
             emit self->message(QStringLiteral("Couldn't keep this board in the browser (storage full or blocked)."));
             return;
+        }
+        if (status.startsWith(QLatin1Char('!'))) {
+            if (!self->m_autosaveFailed)
+                emit self->message(QStringLiteral("Could not write your file (%1). Changes are kept in this browser; click Save to try again.").arg(status.mid(1)));
+            self->m_autosaveFailed = true;
+        } else if (status == QLatin1String("file")) {
+            self->m_autosaveFailed = false;
         }
         if (status == QLatin1String("permission") && !self->m_permissionHinted) {
             self->m_permissionHinted = true;
@@ -2381,6 +2439,10 @@ void BoardCanvas::browserSaveBoard(const QString &password, bool asNew)
         if (supported) {
             if (fileName.isEmpty())
                 return;   // cancelled
+            if (fileName.startsWith(QLatin1Char('!'))) {
+                emit self->message(QStringLiteral("Could not save the file: %1. The board is still kept in this browser.").arg(fileName.mid(1)));
+                return;
+            }
             markSaved();
             self->noteSavedRecent(QStringLiteral("browser:") + uid, false);
             emit self->message(QStringLiteral("Saved %1 — changes now save automatically").arg(fileName));

@@ -15,9 +15,11 @@
 
 namespace WebStorage {
 bool canPickFile();
-// status: "file" (written to the linked file too) | "browser" | "permission" | "" (error)
+// status: "file" (written to the linked file too) | "browser" | "permission" |
+//         "!reason" (linked file failed; browser copy kept) | "" (error)
 void save(const QString &uid, const QString &title, const QByteArray &data, std::function<void(QString status)> done);
-// File name written, "" = cancelled, null result (ok=false) = no file access in this browser.
+// File name written, "" = cancelled, "!reason" = writing failed,
+// supported=false = no file access in this browser.
 void saveToFile(const QString &uid, const QString &title, const QString &suggestedName, const QByteArray &data,
                 bool asNew, std::function<void(bool supported, QString fileName)> done);
 // Opens a .board file and remembers it (call linkOpened once the board's id is known).

@@ -107,9 +107,16 @@
         let p = await h.queryPermission(opts);
         if (p !== 'granted' && ask) p = await h.requestPermission(opts);
         if (p !== 'granted') return false;
-        const w = await h.createWritable();
-        await w.write(bytes);
-        await w.close();
+        const w = await h.createWritable({ keepExistingData: false });
+        try {
+          await w.write(bytes);
+          await w.close();             // the file only changes on close
+        } catch (e) {
+          try { await w.abort(); } catch (_) {}
+          throw e;
+        }
+        const size = (await h.getFile()).size;
+        if (size !== bytes.length) throw new Error(`the file has ${size} bytes instead of ${bytes.length}`);
         return true;
       }
       const safe = (cb, id, fn) => fn().then((v) => cb(id, v), (e) => { console.warn('miruWeb', e); cb(id, null); });
@@ -125,11 +132,12 @@
             await put(rec);
             if (!rec.handle) return 'browser';
             try { return (await writeHandle(rec.handle, bytes, false)) ? 'file' : 'permission'; }
-            catch (e) { return 'permission'; }
+            catch (e) { console.warn('miruWeb file write', e); return '!' + (e && e.message || e); }
           });
         },
         // Save button (user click): write the linked file (asking permission again after a
-        // reload) or pick a new one. -> file name, '' when cancelled, null when unsupported
+        // reload) or pick a new one. -> file name, '' when cancelled, null when unsupported,
+        // '!reason' when writing the file failed
         saveToFile(id, uid, title, suggested, view, asNew, cb) {
           const bytes = view.slice();
           safe(cb, id, async () => {
@@ -140,7 +148,11 @@
               try { h = await showSaveFilePicker({ suggestedName: suggested, types }); }
               catch (e) { return ''; }        // cancelled
             }
-            if (!(await writeHandle(h, bytes, true))) return '';
+            try {
+              if (!(await writeHandle(h, bytes, true))) return '!the browser did not allow writing the file';
+            } catch (e) {
+              return '!' + (e && e.message || e);
+            }
             await put({ uid, title, data: bytes, time: Date.now(), handle: h });
             return h.name;
           });

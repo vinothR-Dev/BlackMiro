@@ -542,6 +542,7 @@ private:
                                         // "modified" if nothing changed meanwhile
     QElapsedTimer m_recentClock;        // autosaves refresh "Recent boards" at most once a minute
     bool m_permissionHinted = false;
+    bool m_autosaveFailed = false;      // last autosave failed: report once until it works again
     void noteSavedRecent(const QString &path, bool quiet);
     void autosaveToBrowser();
     void scheduleAutosave();
